@@ -106,7 +106,7 @@
                 "natGateway": {
                     "id": "[resourceId('Microsoft.Network/natGateways', parameters('natGateways_SAP_lab_ngw_name'))]"
                 },
-                "ipAddress": "20.225.135.153",
+                "ipAddress": "",
                 "publicIPAddressVersion": "IPv4",
                 "publicIPAllocationMethod": "Static",
                 "idleTimeoutInMinutes": 4,
