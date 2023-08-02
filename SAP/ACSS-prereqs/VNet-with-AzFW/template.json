@@ -1,1 +1,549 @@
-
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "routeTableNameForDatabaseSubnet": {
+            "defaultValue": "db-subnet-rt",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the route table attached to  db-subnet"
+            }
+        },
+        "routeTableNameForApplicationSubnet": {
+            "defaultValue": "app-subnet-rt",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the route table attached to app-subnet"
+            }
+        },
+        "publicIPAddressNameForAzfw": {
+            "defaultValue": "azfw-pip",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the public IP resource used for the Azure Firewall"
+            }
+        },
+        "azureFirewallName": {
+            "defaultValue": "acss-lab-azfw",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the Azure Firewall resource"
+            }
+        },
+        "virtualNetworkName": {
+            "defaultValue": "acss-lab-vnet",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the Virtual Network"
+            }
+        },
+        "publicIPAddressNameForAzfwManagementInterface": {
+            "defaultValue": "azfw-mgmt-pip",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the public IP resource used for the Azure Firewall Management interface"
+            }
+        },
+        "firewallPolicyName": {
+            "defaultValue": "acss-lab-fwpolicy",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the Firewall Policy resource"
+            }
+        },
+        "NSGNameForDatabaseSubnet": {
+            "defaultValue": "db-subnet-nsg",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the Network Security Group attached to db-subnet"
+            }
+        },
+        "NSGNameForApplicationSubnet": {
+            "defaultValue": "app-subnet-nsg",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the Network Security Group attached to app-subnet"
+            }
+        },
+        "NSGNameForJumpboxSubnet": {
+            "defaultValue": "jumpbox-subnet-nsg",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the Network Security Group attached to jumpbox-subnet"
+            }
+        },
+        "virtualNetworkAddressSpace": {
+            "defaultValue": "10.20.0.0/16",
+            "type": "String",
+            "metadata": {
+                "description": "The address space for the virtual network"
+            }
+        },
+        "jumpbox-subnetAddressPrefix": {
+            "defaultValue": "10.20.0.0/24",
+            "type": "String",
+            "metadata": {
+                "description": "Address prefix for jumpbox-subnet"
+            }
+        },
+        "app-subnetAddressPrefix": {
+            "defaultValue": "10.20.1.0/24",
+            "type": "String",
+            "metadata": {
+                "description": "Address prefix for app-subnet"
+            }
+        },
+        "db-subnetAddressPrefix": {
+            "defaultValue": "10.20.2.0/24",
+            "type": "String",
+            "metadata": {
+                "description": "Address prefix for db-subnet"
+            }
+        },
+        "azfwSubnetAddressPrefix": {
+            "defaultValue": "10.20.3.0/26",
+            "type": "String",
+            "metadata": {
+                "description": "Address prefix for AzureFirewallSubnet. Must be a /26 prefix."
+            }
+        },
+        "azfwManagementSubnetAddressPrefix": {
+            "defaultValue": "10.20.3.64/26",
+            "type": "String",
+            "metadata": {
+                "description": "Address prefix for AzureFirewallManagementSubnet. Must be a /26 prefix."
+            }
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.Network/firewallPolicies",
+            "apiVersion": "2022-11-01",
+            "name": "[parameters('firewallPolicyName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "sku": {
+                    "tier": "Basic"
+                },
+                "threatIntelMode": "Alert"
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2022-11-01",
+            "name": "[parameters('NSGNameForApplicationSubnet')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": []
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2022-11-01",
+            "name": "[parameters('NSGNameForDatabaseSubnet')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": []
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2022-11-01",
+            "name": "[parameters('NSGNameForJumpboxSubnet')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": []
+            }
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2022-11-01",
+            "name": "[parameters('publicIPAddressNameForAzfwManagementInterface')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Standard",
+                "tier": "Regional"
+            },
+            "properties": {
+                "ipAddress": "",
+                "publicIPAddressVersion": "IPv4",
+                "publicIPAllocationMethod": "Static",
+                "idleTimeoutInMinutes": 4,
+                "ipTags": []
+            }
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2022-11-01",
+            "name": "[parameters('publicIPAddressNameForAzfw')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Standard",
+                "tier": "Regional"
+            },
+            "properties": {
+                "ipAddress": "",
+                "publicIPAddressVersion": "IPv4",
+                "publicIPAllocationMethod": "Static",
+                "idleTimeoutInMinutes": 4,
+                "ipTags": []
+            }
+        },
+        {
+            "type": "Microsoft.Network/routeTables",
+            "apiVersion": "2022-11-01",
+            "name": "[parameters('routeTableNameForApplicationSubnet')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "disableBgpRoutePropagation": false
+            }
+        },
+        {
+            "type": "Microsoft.Network/routeTables",
+            "apiVersion": "2022-11-01",
+            "name": "[parameters('routeTableNameForDatabaseSubnet')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "disableBgpRoutePropagation": false
+            }
+        },
+        {
+            "type": "Microsoft.Network/firewallPolicies/ruleCollectionGroups",
+            "apiVersion": "2022-11-01",
+            "name": "[concat(parameters('firewallPolicyName'), '/DefaultNetworkRuleCollectionGroup')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/firewallPolicies', parameters('firewallPolicyName'))]"
+            ],
+            "properties": {
+                "priority": 200,
+                "ruleCollections": [
+                    {
+                        "ruleCollectionType": "FirewallPolicyFilterRuleCollection",
+                        "action": {
+                            "type": "Allow"
+                        },
+                        "rules": [
+                            {
+                                "ruleType": "NetworkRule",
+                                "name": "AllowAllOutbound",
+                                "ipProtocols": [
+                                    "Any"
+                                ],
+                                "sourceAddresses": [
+                                    "[parameters('virtualNetworkAddressSpace')]"
+                                ],
+                                "sourceIpGroups": [],
+                                "destinationAddresses": [
+                                    "*"
+                                ],
+                                "destinationIpGroups": [],
+                                "destinationFqdns": [],
+                                "destinationPorts": [
+                                    "*"
+                                ]
+                            },
+                            {
+                                "ruleType": "NetworkRule",
+                                "name": "AllowICMPEchoReply",
+                                "ipProtocols": [
+                                    "ICMP"
+                                ],
+                                "sourceAddresses": [
+                                    "*"
+                                ],
+                                "sourceIpGroups": [],
+                                "destinationAddresses": [
+                                    "*"
+                                ],
+                                "destinationIpGroups": [],
+                                "destinationFqdns": [],
+                                "destinationPorts": [
+                                    "*"
+                                ]
+                            }
+                        ],
+                        "name": "RuleCollection1",
+                        "priority": 100
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/routeTables/routes",
+            "apiVersion": "2022-11-01",
+            "name": "[concat(parameters('routeTableNameForApplicationSubnet'), '/toAzFW')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/routeTables', parameters('routeTableNameForApplicationSubnet'))]",
+                "[resourceId('Microsoft.Network/azureFirewalls', parameters('azureFirewallName'))]"
+            ],
+            "properties": {
+                "addressPrefix": "0.0.0.0/0",
+                "nextHopType": "VirtualAppliance",
+                "nextHopIpAddress": "[reference(parameters('azureFirewallName')).ipConfigurations[0].properties.privateIPAddress]",
+                "hasBgpOverride": false
+            }
+        },
+        {
+            "type": "Microsoft.Network/routeTables/routes",
+            "apiVersion": "2022-11-01",
+            "name": "[concat(parameters('routeTableNameForDatabaseSubnet'), '/toAzFW')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/routeTables', parameters('routeTableNameForDatabaseSubnet'))]",
+                "[resourceId('Microsoft.Network/azureFirewalls', parameters('azureFirewallName'))]"
+            ],
+            "properties": {
+                "addressPrefix": "0.0.0.0/0",
+                "nextHopType": "VirtualAppliance",
+                "nextHopIpAddress": "[reference(parameters('azureFirewallName')).ipConfigurations[0].properties.privateIPAddress]",
+                "hasBgpOverride": false
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2022-11-01",
+            "name": "[concat(parameters('virtualNetworkName'), '/AzureFirewallManagementSubnet')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('azfwManagementSubnetAddressPrefix')]",
+                "serviceEndpoints": [],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Disabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2022-11-01",
+            "name": "[concat(parameters('virtualNetworkName'), '/AzureFirewallSubnet')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('azfwSubnetAddressPrefix')]",
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Disabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2022-11-01",
+            "name": "[concat(parameters('virtualNetworkName'), '/jumpbox-subnet')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForJumpboxSubnet'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('jumpbox-subnetAddressPrefix')]",
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForJumpboxSubnet'))]"
+                },
+                "serviceEndpoints": [],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Disabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2022-11-01",
+            "name": "[concat(parameters('virtualNetworkName'), '/app-subnet')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForApplicationSubnet'))]",
+                "[resourceId('Microsoft.Network/routeTables', parameters('routeTableNameForApplicationSubnet'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('app-subnetAddressPrefix')]",
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForApplicationSubnet'))]"
+                },
+                "routeTable": {
+                    "id": "[resourceId('Microsoft.Network/routeTables', parameters('routeTableNameForApplicationSubnet'))]"
+                },
+                "serviceEndpoints": [],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Disabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2022-11-01",
+            "name": "[concat(parameters('virtualNetworkName'), '/db-subnet')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForDatabaseSubnet'))]",
+                "[resourceId('Microsoft.Network/routeTables', parameters('routeTableNameForDatabaseSubnet'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('db-subnetAddressPrefix')]",
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForDatabaseSubnet'))]"
+                },
+                "routeTable": {
+                    "id": "[resourceId('Microsoft.Network/routeTables', parameters('routeTableNameForDatabaseSubnet'))]"
+                },
+                "serviceEndpoints": [],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Disabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/azureFirewalls",
+            "apiVersion": "2022-11-01",
+            "name": "[parameters('azureFirewallName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIPAddressNameForAzfwManagementInterface'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), 'AzureFirewallManagementSubnet')]",
+                "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIPAddressNameForAzfw'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), 'AzureFirewallSubnet')]",
+                "[resourceId('Microsoft.Network/firewallPolicies', parameters('firewallPolicyName'))]"
+            ],
+            "properties": {
+                "sku": {
+                    "name": "AZFW_VNet",
+                    "tier": "Basic"
+                },
+                "threatIntelMode": "Alert",
+                "additionalProperties": {},
+                "managementIpConfiguration": {
+                    "name": "azfw-mgmt-pip",
+                    "id": "[concat(resourceId('Microsoft.Network/azureFirewalls', parameters('azureFirewallName')), '/azureFirewallIpConfigurations/azfw-mgmt-pip')]",
+                    "properties": {
+                        "publicIPAddress": {
+                            "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIPAddressNameForAzfwManagementInterface'))]"
+                        },
+                        "subnet": {
+                            "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), 'AzureFirewallManagementSubnet')]"
+                        }
+                    }
+                },
+                "ipConfigurations": [
+                    {
+                        "name": "azfw-pip",
+                        "id": "[concat(resourceId('Microsoft.Network/azureFirewalls', parameters('azureFirewallName')), '/azureFirewallIpConfigurations/azfw-pip')]",
+                        "properties": {
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIPAddressNameForAzfw'))]"
+                            },
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), 'AzureFirewallSubnet')]"
+                            }
+                        }
+                    }
+                ],
+                "networkRuleCollections": [],
+                "applicationRuleCollections": [],
+                "natRuleCollections": [],
+                "firewallPolicy": {
+                    "id": "[resourceId('Microsoft.Network/firewallPolicies', parameters('firewallPolicyName'))]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2022-11-01",
+            "name": "[parameters('virtualNetworkName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForJumpboxSubnet'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForApplicationSubnet'))]",
+                "[resourceId('Microsoft.Network/routeTables', parameters('routeTableNameForApplicationSubnet'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForDatabaseSubnet'))]",
+                "[resourceId('Microsoft.Network/routeTables', parameters('routeTableNameForDatabaseSubnet'))]"
+            ],
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('virtualNetworkAddressSpace')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "AzureFirewallSubnet",
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), 'AzureFirewallSubnet')]",
+                        "properties": {
+                            "addressPrefix": "[parameters('azfwSubnetAddressPrefix')]",
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Disabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        },
+                        "type": "Microsoft.Network/virtualNetworks/subnets"
+                    },
+                    {
+                        "name": "jumpbox-subnet",
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), 'jumpbox-subnet')]",
+                        "properties": {
+                            "addressPrefix": "[parameters('jumpbox-subnetAddressPrefix')]",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForJumpboxSubnet'))]"
+                            },
+                            "serviceEndpoints": [],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Disabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        },
+                        "type": "Microsoft.Network/virtualNetworks/subnets"
+                    },
+                    {
+                        "name": "app-subnet",
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), 'app-subnet')]",
+                        "properties": {
+                            "addressPrefix": "[parameters('app-subnetAddressPrefix')]",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForApplicationSubnet'))]"
+                            },
+                            "routeTable": {
+                                "id": "[resourceId('Microsoft.Network/routeTables', parameters('routeTableNameForApplicationSubnet'))]"
+                            },
+                            "serviceEndpoints": [],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Disabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        },
+                        "type": "Microsoft.Network/virtualNetworks/subnets"
+                    },
+                    {
+                        "name": "db-subnet",
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), 'db-subnet')]",
+                        "properties": {
+                            "addressPrefix": "[parameters('db-subnetAddressPrefix')]",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForDatabaseSubnet'))]"
+                            },
+                            "routeTable": {
+                                "id": "[resourceId('Microsoft.Network/routeTables', parameters('routeTableNameForDatabaseSubnet'))]"
+                            },
+                            "serviceEndpoints": [],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Disabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        },
+                        "type": "Microsoft.Network/virtualNetworks/subnets"
+                    },
+                    {
+                        "name": "AzureFirewallManagementSubnet",
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), 'AzureFirewallManagementSubnet')]",
+                        "properties": {
+                            "addressPrefix": "[parameters('azfwManagementSubnetAddressPrefix')]",
+                            "serviceEndpoints": [],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Disabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        },
+                        "type": "Microsoft.Network/virtualNetworks/subnets"
+                    }
+                ],
+                "virtualNetworkPeerings": [],
+                "enableDdosProtection": false
+            }
+        }
+    ]
+}
