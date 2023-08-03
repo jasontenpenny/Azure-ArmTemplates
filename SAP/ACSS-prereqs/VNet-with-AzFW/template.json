@@ -76,7 +76,7 @@
             "defaultValue": "10.20.0.0/16",
             "type": "String",
             "metadata": {
-                "description": "The address space for the virtual network"
+                "description": "The address space for the virtual network. Must be a /22 or larger."
             }
         },
         "jumpbox-subnetAddressPrefix": {
