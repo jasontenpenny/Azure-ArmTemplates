@@ -2,6 +2,13 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
+        "homeIPAddress": {
+            "defaultValue": "*",
+            "type": "String",
+            "metadata": {
+                "description": "IP address used to allow inbound RDP/SSH connections into jumpbox-subnet"
+            }
+        },
         "natGatewayName": {
             "defaultValue": "acss-lab-natgw",
             "type": "String",
@@ -99,7 +106,53 @@
             "name": "[parameters('NSGNameForJumpboxSubnet')]",
             "location": "[resourceGroup().location]",
             "properties": {
-                "securityRules": []
+                "securityRules": [
+                    {
+                        "name": "AllowConnectionsFromHomeIP",
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups/securityRules', parameters('NSGNameForJumpboxSubnet'), 'AllowConnectionsFromHomeIP')]",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "sourceAddressPrefix": "[parameters('homeIPAddress')]",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [
+                                "3389",
+                                "22"
+                            ],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    }   
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+            "apiVersion": "2022-11-01",
+            "name": "[concat(parameters('NSGNameForJumpboxSubnet'), '/AllowConnectionsFromHomeIP')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForJumpboxSubnet'))]"
+            ],
+            "properties": {
+                "protocol": "*",
+                "sourcePortRange": "*",
+                "sourceAddressPrefix": "[parameters('homeIPAddress')]",
+                "destinationAddressPrefix": "*",
+                "access": "Allow",
+                "priority": 100,
+                "direction": "Inbound",
+                "sourcePortRanges": [],
+                "destinationPortRanges": [
+                    "3389",
+                    "22"
+                ],
+                "sourceAddressPrefixes": [],
+                "destinationAddressPrefixes": []
             }
         },
         {
