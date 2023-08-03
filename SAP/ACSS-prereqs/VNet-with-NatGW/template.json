@@ -2,45 +2,75 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "natGateways_ACSS_lab_ngw_name": {
-            "defaultValue": "acss-lab-ngw",
-            "type": "String"
+        "natGatewayName": {
+            "defaultValue": "acss-lab-natgw",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the NAT Gateway resource"
+            }
         },
-        "publicIPAddresses_natgw_pip_name": {
+        "publicIPAddressNameForNatGW": {
             "defaultValue": "natgw-pip",
-            "type": "String"
+            "type": "String",
+            "metadata": {
+                "description": "Name of the Public IP resource attached to the NAT Gateway"
+            }
         },
-        "virtualNetworks_ACSS_lab_vnet_name": {
+        "virtualNetworkName": {
             "defaultValue": "acss-lab-vnet",
-            "type": "String"
+            "type": "String",
+            "metadata": {
+                "description": "Name of the Virtual Network"
+            }
         },
-        "networkSecurityGroups_db_subnet_nsg_name": {
+        "NSGNameForDatabaseSubnet": {
             "defaultValue": "db-subnet-nsg",
-            "type": "String"
+            "type": "String",
+            "metadata": {
+                "description": "Name of the Network Security Group attached to db-subnet"
+            }
         },
-        "networkSecurityGroups_app_subnet_nsg_name": {
+        "NSGNameForApplicationSubnet": {
             "defaultValue": "app-subnet-nsg",
-            "type": "String"
+            "type": "String",
+            "metadata": {
+                "description": "Name of the Network Security Group attached to app-subnet"
+            }
         },
-        "networkSecurityGroups_jumpbox_subnet_nsg_name": {
+        "NSGNameForJumpboxSubnet": {
             "defaultValue": "jumpbox-subnet-nsg",
-            "type": "String"
+            "type": "String",
+            "metadata": {
+                "description": "Name of the Network Security Group attached to jumpbox-subnet"
+            }
         },
-        "virtualNetworks_address_space": {
+        "virtualNetworkAddressSpace": {
             "defaultValue": "10.20.0.0/16",
-            "type": "String"
+            "type": "String",
+            "metadata": {
+                "description": "The address space for the virtual network"
+            }
         },
-        "virtualNetworks_jumpbox_subnet_address_prefix": {
+        "jumpbox-subnetAddressPrefix": {
             "defaultValue": "10.20.0.0/24",
-            "type": "String"
+            "type": "String",
+            "metadata": {
+                "description": "Address prefix for jumpbox-subnet"
+            }
         },
-        "virtualNetworks_app_subnet_address_prefix": {
+        "app-subnetAddressPrefix": {
             "defaultValue": "10.20.1.0/24",
-            "type": "String"
+            "type": "String",
+            "metadata": {
+                "description": "Address prefix for app-subnet"
+            }
         },
-        "virtualNetworks_db_subnet_address_prefix": {
+        "db-subnetAddressPrefix": {
             "defaultValue": "10.20.2.0/24",
-            "type": "String"
+            "type": "String",
+            "metadata": {
+                "description": "Address prefix for db-subnet"
+            }
         }
     },
     "variables": {},
@@ -48,8 +78,8 @@
         {
             "type": "Microsoft.Network/networkSecurityGroups",
             "apiVersion": "2022-11-01",
-            "name": "[parameters('networkSecurityGroups_app_subnet_nsg_name')]",
-            "location": "southcentralus",
+            "name": "[parameters('NSGNameForApplicationSubnet')]",
+            "location": "[resourceGroup().location]",
             "properties": {
                 "securityRules": []
             }
@@ -57,8 +87,8 @@
         {
             "type": "Microsoft.Network/networkSecurityGroups",
             "apiVersion": "2022-11-01",
-            "name": "[parameters('networkSecurityGroups_db_subnet_nsg_name')]",
-            "location": "southcentralus",
+            "name": "[parameters('NSGNameForDatabaseSubnet')]",
+            "location": "[resourceGroup().location]",
             "properties": {
                 "securityRules": []
             }
@@ -66,8 +96,8 @@
         {
             "type": "Microsoft.Network/networkSecurityGroups",
             "apiVersion": "2022-11-01",
-            "name": "[parameters('networkSecurityGroups_jumpbox_subnet_nsg_name')]",
-            "location": "southcentralus",
+            "name": "[parameters('NSGNameForJumpboxSubnet')]",
+            "location": "[resourceGroup().location]",
             "properties": {
                 "securityRules": []
             }
@@ -75,10 +105,10 @@
         {
             "type": "Microsoft.Network/natGateways",
             "apiVersion": "2022-11-01",
-            "name": "[parameters('natGateways_ACSS_lab_ngw_name')]",
-            "location": "southcentralus",
+            "name": "[parameters('natGatewayName')]",
+            "location": "[resourceGroup().location]",
             "dependsOn": [
-                "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIPAddresses_natgw_pip_name'))]"
+                "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIPAddressNameForNatGW'))]"
             ],
             "sku": {
                 "name": "Standard",
@@ -88,7 +118,7 @@
                 "idleTimeoutInMinutes": 4,
                 "publicIpAddresses": [
                     {
-                        "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIPAddresses_natgw_pip_name'))]"
+                        "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIPAddressNameForNatGW'))]"
                     }
                 ]
             }
@@ -96,15 +126,15 @@
         {
             "type": "Microsoft.Network/publicIPAddresses",
             "apiVersion": "2022-11-01",
-            "name": "[parameters('publicIPAddresses_natgw_pip_name')]",
-            "location": "southcentralus",
+            "name": "[parameters('publicIPAddressNameForNatGW')]",
+            "location": "[resourceGroup().location]",
             "sku": {
                 "name": "Standard",
                 "tier": "Regional"
             },
             "properties": {
                 "natGateway": {
-                    "id": "[resourceId('Microsoft.Network/natGateways', parameters('natGateways_ACSS_lab_ngw_name'))]"
+                    "id": "[resourceId('Microsoft.Network/natGateways', parameters('natGatewayName'))]"
                 },
                 "ipAddress": "",
                 "publicIPAddressVersion": "IPv4",
@@ -119,15 +149,15 @@
         {
             "type": "Microsoft.Network/virtualNetworks/subnets",
             "apiVersion": "2022-11-01",
-            "name": "[concat(parameters('virtualNetworks_ACSS_lab_vnet_name'), '/jumpbox-subnet')]",
+            "name": "[concat(parameters('virtualNetworkName'), '/jumpbox-subnet')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworks_ACSS_lab_vnet_name'))]",
-                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroups_jumpbox_subnet_nsg_name'))]"
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForJumpboxSubnet'))]"
             ],
             "properties": {
-                "addressPrefix": "[parameters('virtualNetworks_jumpbox_subnet_address_prefix')]",
+                "addressPrefix": "[parameters('jumpbox-subnetAddressPrefix')]",
                 "networkSecurityGroup": {
-                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroups_jumpbox_subnet_nsg_name'))]"
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForJumpboxSubnet'))]"
                 },
                 "serviceEndpoints": [],
                 "delegations": [],
@@ -138,19 +168,19 @@
         {
             "type": "Microsoft.Network/virtualNetworks/subnets",
             "apiVersion": "2022-11-01",
-            "name": "[concat(parameters('virtualNetworks_ACSS_lab_vnet_name'), '/app-subnet')]",
+            "name": "[concat(parameters('virtualNetworkName'), '/app-subnet')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworks_ACSS_lab_vnet_name'))]",
-                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroups_app_subnet_nsg_name'))]",
-                "[resourceId('Microsoft.Network/natGateways', parameters('natGateways_ACSS_lab_ngw_name'))]"
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForApplicationSubnet'))]",
+                "[resourceId('Microsoft.Network/natGateways', parameters('natGatewayName'))]"
             ],
             "properties": {
-                "addressPrefix": "[parameters('virtualNetworks_app_subnet_address_prefix')]",
+                "addressPrefix": "[parameters('app-subnetAddressPrefix')]",
                 "networkSecurityGroup": {
-                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroups_app_subnet_nsg_name'))]"
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForApplicationSubnet'))]"
                 },
                 "natGateway": {
-                    "id": "[resourceId('Microsoft.Network/natGateways', parameters('natGateways_ACSS_lab_ngw_name'))]"
+                    "id": "[resourceId('Microsoft.Network/natGateways', parameters('natGatewayName'))]"
                 },
                 "serviceEndpoints": [],
                 "delegations": [],
@@ -161,19 +191,19 @@
         {
             "type": "Microsoft.Network/virtualNetworks/subnets",
             "apiVersion": "2022-11-01",
-            "name": "[concat(parameters('virtualNetworks_ACSS_lab_vnet_name'), '/db-subnet')]",
+            "name": "[concat(parameters('virtualNetworkName'), '/db-subnet')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworks_ACSS_lab_vnet_name'))]",
-                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroups_db_subnet_nsg_name'))]",
-                "[resourceId('Microsoft.Network/natGateways', parameters('natGateways_ACSS_lab_ngw_name'))]"
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForDatabaseSubnet'))]",
+                "[resourceId('Microsoft.Network/natGateways', parameters('natGatewayName'))]"
             ],
             "properties": {
-                "addressPrefix": "[parameters('virtualNetworks_db_subnet_address_prefix')]",
+                "addressPrefix": "[parameters('db-subnetAddressPrefix')]",
                 "networkSecurityGroup": {
-                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroups_db_subnet_nsg_name'))]"
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForDatabaseSubnet'))]"
                 },
                 "natGateway": {
-                    "id": "[resourceId('Microsoft.Network/natGateways', parameters('natGateways_ACSS_lab_ngw_name'))]"
+                    "id": "[resourceId('Microsoft.Network/natGateways', parameters('natGatewayName'))]"
                 },
                 "serviceEndpoints": [],
                 "delegations": [],
@@ -184,18 +214,18 @@
         {
             "type": "Microsoft.Network/virtualNetworks",
             "apiVersion": "2022-11-01",
-            "name": "[parameters('virtualNetworks_ACSS_lab_vnet_name')]",
-            "location": "southcentralus",
+            "name": "[parameters('virtualNetworkName')]",
+            "location": "[resourceGroup().location]",
             "dependsOn": [
-                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroups_app_subnet_nsg_name'))]",
-                "[resourceId('Microsoft.Network/natGateways', parameters('natGateways_ACSS_lab_ngw_name'))]",
-                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroups_db_subnet_nsg_name'))]",
-                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroups_jumpbox_subnet_nsg_name'))]"
+                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForApplicationSubnet'))]",
+                "[resourceId('Microsoft.Network/natGateways', parameters('natGatewayName'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForDatabaseSubnet'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForJumpboxSubnet'))]"
             ],
             "properties": {
                 "addressSpace": {
                     "addressPrefixes": [
-                        "[parameters('virtualNetworks_address_space')]"
+                        "[parameters('virtualNetworkAddressSpace')]"
                     ]
                 },
                 "encryption": {
@@ -205,14 +235,14 @@
                 "subnets": [
                     {
                         "name": "app-subnet",
-                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_ACSS_lab_vnet_name'), 'app-subnet')]",
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), 'app-subnet')]",
                         "properties": {
-                            "addressPrefix": "10.20.1.0/24",
+                            "addressPrefix": "[parameters('app-subnetAddressPrefix')]",
                             "networkSecurityGroup": {
-                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroups_app_subnet_nsg_name'))]"
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForApplicationSubnet'))]"
                             },
                             "natGateway": {
-                                "id": "[resourceId('Microsoft.Network/natGateways', parameters('natGateways_ACSS_lab_ngw_name'))]"
+                                "id": "[resourceId('Microsoft.Network/natGateways', parameters('natGatewayName'))]"
                             },
                             "serviceEndpoints": [],
                             "delegations": [],
@@ -223,14 +253,14 @@
                     },
                     {
                         "name": "db-subnet",
-                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_ACSS_lab_vnet_name'), 'db-subnet')]",
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), 'db-subnet')]",
                         "properties": {
-                            "addressPrefix": "10.20.2.0/24",
+                            "addressPrefix": "[parameters('db-subnetAddressPrefix')]",
                             "networkSecurityGroup": {
-                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroups_db_subnet_nsg_name'))]"
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForDatabaseSubnet'))]"
                             },
                             "natGateway": {
-                                "id": "[resourceId('Microsoft.Network/natGateways', parameters('natGateways_ACSS_lab_ngw_name'))]"
+                                "id": "[resourceId('Microsoft.Network/natGateways', parameters('natGatewayName'))]"
                             },
                             "serviceEndpoints": [],
                             "delegations": [],
@@ -241,11 +271,11 @@
                     },
                     {
                         "name": "jumpbox-subnet",
-                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworks_ACSS_lab_vnet_name'), 'jumpbox-subnet')]",
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), 'jumpbox-subnet')]",
                         "properties": {
-                            "addressPrefix": "10.20.0.0/24",
+                            "addressPrefix": "[parameters('jumpbox-subnetAddressPrefix')]",
                             "networkSecurityGroup": {
-                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroups_jumpbox_subnet_nsg_name'))]"
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('NSGNameForJumpboxSubnet'))]"
                             },
                             "serviceEndpoints": [],
                             "delegations": [],
