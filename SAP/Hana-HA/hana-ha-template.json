@@ -72,7 +72,7 @@
             }
         },
         "runDiskConfigurationScript": {
-            "defaultValue": false,
+            "defaultValue": true,
             "type": "bool",
             "metadata": {
                 "description": "Used to enable or disable the automated setup of the disks and volumes on the database VMs."
@@ -145,11 +145,11 @@
                 "description": "Enter an IP address to use for allowing access to jumpbox-subnet. Will only be used if you are deploying new network infrastructure."
             }
         },
-        "timestamp": {
-            "defaultValue": 123456789,
-            "type": "int",
+        "utcValue": {
+            "defaultValue": "[utcNow()]",
+            "type": "string",
             "metadata": {
-                "description": "Value must ber set to an int so multiple CSEs can be deployed to the same VM."
+                "description": "Time in UTC"
             }
         }
     },
@@ -168,9 +168,31 @@
         "azfwSubnetAddressPrefix": "10.20.3.0/26",
         "azfwManagementSubnetAddressPrefix": "10.20.3.64/26",
         "sapInstallMediaUri": "[concat('https://', parameters('SAPInstallMediaStorageAccountName'), '.blob.core.windows.net/', parameters('SAPInstallMediaFilePath'), '/', parameters('SAPInstallMediaFileName'))]",
-        "loadBalancerName": "[concat(parameters('hanaVMNamingPrefix'), '-ilb')]"
+        "loadBalancerName": "[concat(parameters('hanaVMNamingPrefix'), '-ilb')]",
+        "userIdentity": "[tolower(concat('ui-', uniqueString(resourceGroup().id)))]",
+        "bootstrapRoleAssignmentId": "[guid(concat(resourceGroup().id, 'contributor'))]",
+        "contributorRoleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]"
     },
     "resources": [
+        {
+            "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+            "name": "[variables('userIdentity')]",
+            "apiVersion": "2018-11-30",
+            "location": "[resourceGroup().location]"
+        },
+        {
+            "type": "Microsoft.Authorization/roleAssignments",
+            "apiVersion": "2018-09-01-preview",
+            "name": "[variables('bootstrapRoleAssignmentId')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userIdentity'))]"
+            ],
+            "properties": {
+                "roleDefinitionId": "[variables('contributorRoleDefinitionId')]",
+                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userIdentity')), '2018-11-30').principalId]",
+                "principalType": "ServicePrincipal"
+            }
+        },
         {
             "type": "Microsoft.Resources/deployments",
             "apiVersion": "2021-04-01",
@@ -955,7 +977,7 @@
                 "typeHandlerVersion": "2.1",
                 "autoUpgradeMinorVersion": true,
                 "settings": {
-                    "timestamp": "[parameters('timestamp')]"
+                    "timestamp": 123456789
                 },
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh disk_config.sh ', parameters('SAPInstanceID'), ' ', parameters('hanaPassword'))]",
@@ -980,7 +1002,7 @@
                 "typeHandlerVersion": "2.1",
                 "autoUpgradeMinorVersion": true,
                 "settings": {
-                    "timestamp": "[parameters('timestamp')]"
+                    "timestamp": 123456789
                 },
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh disk_config.sh ', parameters('SAPInstanceID'), ' ', parameters('hanaPassword'))]",
@@ -998,7 +1020,8 @@
             "apiVersion": "2019-03-01",
             "dependsOn": [
                 "[resourceId('Microsoft.Compute/virtualMachines', variables('dbVm1Name'))]",
-                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('dbVm1Name'), 'diskConfig')]"
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('dbVm1Name'), 'diskConfig')]",
+                "[resourceId('Microsoft.Resources/deploymentScripts', 'removeDiskConfigScript')]"
             ],
             "properties": {
                 "publisher": "Microsoft.Azure.Extensions",
@@ -1006,10 +1029,10 @@
                 "typeHandlerVersion": "2.1",
                 "autoUpgradeMinorVersion": true,
                 "settings": {
-                    "timestamp": "[parameters('timestamp')]"
+                    "timestamp": 123456789
                 },
                 "protectedSettings": {
-                    "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFilePath'))]",
+                    "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFileName'))]",
                     "fileUris": [
                         "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/sap_install.sh"
                     ]
@@ -1024,7 +1047,8 @@
             "apiVersion": "2019-03-01",
             "dependsOn": [
                 "[resourceId('Microsoft.Compute/virtualMachines', variables('dbVm2Name'))]",
-                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('dbVm2Name'), 'diskConfig')]"
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('dbVm2Name'), 'diskConfig')]",
+                "[resourceId('Microsoft.Resources/deploymentScripts', 'removeDiskConfigScript')]"
             ],
             "properties": {
                 "publisher": "Microsoft.Azure.Extensions",
@@ -1032,14 +1056,41 @@
                 "typeHandlerVersion": "2.1",
                 "autoUpgradeMinorVersion": true,
                 "settings": {
-                    "timestamp": "[parameters('timestamp')]"
+                    "timestamp": 123456789
                 },
                 "protectedSettings": {
-                    "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFilePath'))]",
+                    "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFileName'))]",
                     "fileUris": [
                         "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/sap_install.sh"
                     ]
                 }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deploymentScripts",
+            "apiVersion": "2020-10-01",
+            "name": "removeDiskConfigScript",
+            "location": "[resourceGroup().location]",
+            "kind": "AzurePowerShell",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('dbVm1Name'), 'diskConfig')]",
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('dbVm2Name'), 'diskConfig')]",
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userIdentity'))]"
+            ],
+            "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                    "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userIdentity')))]": {}
+                }
+            }, 
+            "properties": {
+                "forceUpdateTag": "[parameters('utcValue')]",
+                "azPowerShellVersion": "9.0",
+                "timeout": "PT30M",
+                "arguments": "[format(' -rgName {0} -subID {1} -vm1Name {2} -vm2Name {3}', resourceGroup().name, subscription().subscriptionId, variables('dbVm1Name'), variables('dbVm2Name'))]",
+                "scriptContent": "param ([string] [Parameter(Mandatory=$true)] $rgName, [string] [Parameter(Mandatory=$true)] $subID, [string] [Parameter(Mandatory=$true)] $vm1Name, [string] [Parameter(Mandatory=$true)] $vm2Name) $ErrorActionPreference = 'Stop'; Set-AzContext -SubscriptionId $subID; Set-AzDefault -ResourceGroupName $rgName; Start-Sleep -Seconds 60; Remove-AzVMExtension -ResourceGroupName $rgName -VMName $vm1Name -Name 'diskConfig' -Force; Remove-AzVMExtension -ResourceGroupName $rgName -VMName $vm2Name -Name 'diskConfig' -Force;",
+                "cleanupPreference": "OnSuccess",
+                "retentionInterval": "P1D"
             }
         },
         {
