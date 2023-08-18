@@ -129,14 +129,14 @@
             }
         },
         "newInfrastructurePrefix": {
-            "defaultValue": "",
+            "defaultValue": "sap-lab",
             "type": "string",
             "metadata": {
                 "description": "If you have elected to create a new VNet, this value will be used to help ensure that all your resource names are unique. Example: 'sap-lab'."
             }
         },
         "homeIPAddress": {
-            "defaultValue": "",
+            "defaultValue": "*",
             "type": "string",
             "metadata": {
                 "description": "Enter an IP address to use for allowing access to jumpbox-subnet. Will only be used if you are deploying new network infrastructure. Can also use '*' to indicate all source IPs."
