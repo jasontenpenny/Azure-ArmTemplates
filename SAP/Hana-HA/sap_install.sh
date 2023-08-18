@@ -11,8 +11,8 @@ installSourceFile=$5
 hostname=$(hostname)
 
 # Make Download directory
-sudo mkdir /hana/shared/$sapInstance/download
-sudo mkdir /hana/shared/$sapInstance/download/sapsoftware
+sudo mkdir /hana/shared/$sapInstanceId/download
+sudo mkdir /hana/shared/$sapInstanceId/download/sapsoftware
 
 # Copy SAP Installer from storage location
 sudo wget -O /hana/shared/$sapInstanceId/download/sapsoftware/$installSourceFile $installSource
