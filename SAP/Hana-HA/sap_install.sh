@@ -88,6 +88,6 @@ expect -exact "Restart system after machine reboot? \[n]\: "
 send "n\r"
 expect -exact "Do you want to continue? (y/n): "
 send "y\r"
-expect -exact "$hostname:~ # \r"
+expect -exact "SAP HANA Database System installed\r"
 expect eof
 EOF
