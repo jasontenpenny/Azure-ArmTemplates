@@ -8,7 +8,6 @@ sapUser=${sapInstanceIdLower}adm
 sapPassword=$3
 installSource=$4
 installSourceFile=$5
-hostname=$(hostname)
 
 # Make Download directory
 sudo mkdir /hana/shared/$sapInstanceId/download
@@ -40,8 +39,8 @@ expect -exact "Enter comma-separated list of the selected indices \[3,4\]: "
 send "2,3\r"
 expect -exact "Enter Installation Path \[/hana/shared\]: "
 send "/hana/shared\r"
-expect -exact "Enter Local Host Name \[$hostname\]: "
-send "$hostname\r"
+expect -exact "Enter Local Host Name \[$HOSTNAME\]: "
+send "$HOSTNAME\r"
 expect -exact "Do you want to add hosts to the system? (y/n) \[n\]: "
 send "n\r"
 expect -exact "Enter SAP HANA System ID: "
