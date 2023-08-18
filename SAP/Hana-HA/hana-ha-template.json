@@ -1,0 +1,1434 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "metadata": {
+        "description": "Deploys a SAP HANA HA cluster. If necessary, will call the separate script to build the prerequisite networks",
+        "author": "Jason Tenpenny",
+        "Enablement": "https://learn.microsoft.com/en-us/azure/sap/workloads/sap-hana-high-availability",
+        "deploymentLinkInternal": "",
+        "tsg": ""
+    },
+    "parameters": {
+        "SAPInstanceID": {
+            "type": "string",
+            "defaultValue": "HN1",
+            "maxLength": 3,
+            "minLength": 3,
+            "metadata": {
+                "description": "Enter the SAP Instance ID you plan to use."
+            }
+        },
+        "SAPInstanceNumber": {
+            "defaultValue": "00",
+            "maxLength": 2,
+            "minLength": 2,
+            "type": "string",
+            "metadata": {
+                "description": "Enter the Database Instance Number you plan to use. Most commonly this is left at '00'."
+            }
+        },
+        "jumpboxUsername": {
+            "defaultValue": "azadmin",
+            "type": "string",
+            "metadata": {
+                "description": "Define the username for the jumpbox VM."
+            }
+        },
+        "jumpboxPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Enter a password to use for logging into the jumpbox VM."
+            }
+        },
+        "hanaUsername": {
+            "defaultValue": "sapadmin",
+            "type": "string",
+            "metadata": {
+                "description": "Define the username for the database VMs."
+            }
+        },
+        "hanaPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Enter a password to use for logging into the database VMs."
+            }
+        },
+        "jumpboxVMName": {
+            "defaultValue": "jumpbox-vm",
+            "type": "String"
+        },
+        "hanaVMNamingPrefix": {
+            "defaultValue": "hana-db",
+            "type": "string",
+            "metadata": {
+                "description": "Choose a name prefix for the Hana database VMs. The deployment will append 1 or 2 to the end, as appropriate."
+            }
+        },
+        "jumpboxVMPublicIPName": {
+            "defaultValue": "jumpbox-vm-pip",
+            "type": "String",
+            "metadata": {
+                "description": "Enter a name for the public IP resource on the jumpbox."
+            }
+        },
+        "runDiskConfigurationScript": {
+            "defaultValue": false,
+            "type": "bool",
+            "metadata": {
+                "description": "Used to enable or disable the automated setup of the disks and volumes on the database VMs."
+            }
+        },
+        "installSAPSoftwareAutomatically": {
+            "defaultValue": false,
+            "type": "bool",
+            "metadata": {
+                "description": "Determines if the template attempts to automatically install SAP. If you already have the software stored in an Azure Storage Account as a blob file, then you could choose to have it downloaded and installed on the VM automatically. If you haven't put the software in an Azure Storage Account (or you don't want to automatically install SAP), change this value to false."
+            }
+        },
+        "SAPInstallMediaStorageAccountName": {
+            "type": "string",
+            "defaultValue": "myAzureStorageAccount",
+            "metadata": {
+                "description": "Name of storage account where SAP Media exists. This will only be used if you elect to install SAP automatically."
+            }
+        },
+        "SAPInstallMediaFilePath": {
+            "type": "string",
+            "defaultValue": "blob/folder",
+            "metadata": {
+                "description": "Enter the folder path to the SAP Installation media. It should be in the format 'blobName/folder/path'. Do not include the filename. This will only be used if you elect to install SAP automatically."
+            }
+        },
+        "SAPInstallMediaFileName": {
+            "type": "string",
+            "defaultValue": "installer.zip",
+            "metadata": {
+                "description": "Enter the filename of the SAP install package. This will only be used if you elect to install SAP automatically."
+            }
+        },
+        "newOrExistingVnet": {
+            "type": "string",
+            "allowedValues": [
+                "newWithNatgw",
+                "newWithAzfw",
+                "existing"
+            ],
+            "metadata": {
+                "description": "Choose whether to use an existing VNet or deploy a new VNet with either a NAT Gateway or Azure Firewall. Accepted values: 'newWithNatgw', 'newWithAzfw', 'existing'."
+            }
+        },
+        "virtualNetworkResourceID": {
+            "defaultValue": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRG/providers/Microsoft.Network/virtualNetworks/myVnet",
+            "type": "String",
+            "metadata": {
+                "description": "If you are using an existing VNet, provide the full resource ID. The script expects to place the jumpbox in a subnet called 'jumpbox-subnet' and place the database VMs in a subnet called 'db-subnet'. If these subnets don't exist, either create them or choose one of the options to create a new VNet."
+            }
+        },
+        "networkSecurityGroupName": {
+            "defaultValue": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRG/providers/Microsoft.Network/networkSecurityGroups/myNSG",
+            "type": "String",
+            "metadata": {
+                "description": "If you are using an existing VNet, provide the name of the NSG attached to the database subnet. It will attach that same NSG to the NICs on the database VMs."
+            }
+        },
+        "newInfrastructurePrefix": {
+            "defaultValue": "sap-lab",
+            "type": "string",
+            "metadata": {
+                "description": "If you have elected to create a new VNet, this value will be used to help ensure that all your resource names are unique."
+            }
+        },
+        "homeIPAddress": {
+            "defaultValue": "*",
+            "type": "string",
+            "metadata": {
+                "description": "Enter an IP address to use for allowing access to jumpbox-subnet. Will only be used if you are deploying new network infrastructure."
+            }
+        },
+        "timestamp": {
+            "defaultValue": 123456789,
+            "type": "int",
+            "metadata": {
+                "description": "Value must ber set to an int so multiple CSEs can be deployed to the same VM."
+            }
+        }
+    },
+    "variables": {
+        "dbVm1Name": "[concat(parameters('hanaVMNamingPrefix'), '1')]",
+        "dbVm2Name": "[concat(parameters('hanaVMNamingPrefix'), '2')]",
+        "jumpboxNicName": "[concat(parameters('jumpboxVMName'), '-nic1')]",
+        "dbVm1NicName": "[concat(variables('dbVm1Name'), '-nic1')]",
+        "dbVm2NicName": "[concat(variables('dbVm2Name'), '-nic1')]",
+        "virtualNetworkName": "[concat(parameters('newInfrastructurePrefix'), '-vnet')]",
+        "dbSubnetNSG": "[concat(parameters('newInfrastructurePrefix'), '-db-subnet-nsg')]",
+        "virtualNetworkAddressSpace": "10.20.0.0/16",
+        "jumpbox-subnetAddressPrefix": "10.20.0.0/24",
+        "app-subnetAddressPrefix": "10.20.1.0/24",
+        "db-subnetAddressPrefix": "10.20.2.0/24",
+        "azfwSubnetAddressPrefix": "10.20.3.0/26",
+        "azfwManagementSubnetAddressPrefix": "10.20.3.64/26",
+        "sapInstallMediaUri": "[concat('https://', parameters('SAPInstallMediaStorageAccountName'), '.blob.core.windows.net/', parameters('SAPInstallMediaFilePath'), '/', parameters('SAPInstallMediaFileName'))]",
+        "loadBalancerName": "[concat(parameters('hanaVMNamingPrefix'), '-ilb')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2021-04-01",
+            "name": "newVnetWithNatgw",
+            "condition": "[equals(parameters('newOrExistingVNet'), 'newWithNatgw')]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/ACSS-prereqs/VNet-with-NatGW/VNet-with-NatGW.json",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "homeIPAddress": {
+                        "value": "[parameters('homeIPAddress')]"
+                    },
+                    "namingConvention": {
+                        "value": "[parameters('newInfrastructurePrefix')]"
+                    },
+                    "virtualNetworkAddressSpace": {
+                        "value": "[variables('virtualNetworkAddressSpace')]"
+                    },
+                    "jumpbox-subnetAddressPrefix": {
+                        "value": "[variables('jumpbox-subnetAddressPrefix')]"
+                    },
+                    "app-subnetAddressPrefix": {
+                        "value": "[variables('app-subnetAddressPrefix')]"
+                    },
+                    "db-subnetAddressPrefix": {
+                        "value": "[variables('db-subnetAddressPrefix')]"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2021-04-01",
+            "name": "newVnetWithAzFW",
+            "condition": "[equals(parameters('newOrExistingVNet'), 'newWithAzfw')]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/ACSS-prereqs/VNet-with-AzFW/VNet-with-AzFW.json",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "homeIPAddress": {
+                        "value": "[parameters('homeIPAddress')]"
+                    },
+                    "namingConvention": {
+                        "value": "[parameters('newInfrastructurePrefix')]"
+                    },
+                    "virtualNetworkAddressSpace": {
+                        "value": "[variables('virtualNetworkAddressSpace')]"
+                    },
+                    "jumpbox-subnetAddressPrefix": {
+                        "value": "[variables('jumpbox-subnetAddressPrefix')]"
+                    },
+                    "app-subnetAddressPrefix": {
+                        "value": "[variables('app-subnetAddressPrefix')]"
+                    },
+                    "db-subnetAddressPrefix": {
+                        "value": "[variables('db-subnetAddressPrefix')]"
+                    },
+                    "azfwSubnetAddressPrefix": {
+                        "value": "[variables('azfwSubnetAddressPrefix')]"
+                    },
+                    "azfwManagementSubnetAddressPrefix": {
+                        "value": "[variables('azfwManagementSubnetAddressPrefix')]"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/loadBalancers",
+            "apiVersion": "2023-04-01",
+            "name": "[variables('loadBalancerName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments', 'newVnetWithAzFW')]",
+                "[resourceId('Microsoft.Resources/deployments', 'newVnetWithNatgw')]"
+            ],
+            "sku": {
+                "name": "Standard",
+                "tier": "Regional"
+            },
+            "properties": {
+                "frontendIPConfigurations": [
+                    {
+                        "name": "[concat(variables('loadBalancerName'), '-frontendconfig01')]",
+                        "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('loadBalancerName')), concat('/frontendIPConfigurations/', variables('loadBalancerName'), '-frontendconfig01'))]",
+                        "properties": {
+                            "privateIPAddress": "",
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[concat(if(equals(parameters('newOrExistingVNet'), 'existing'), parameters('virtualNetworkResourceID'), resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))), '/subnets/db-subnet')]"
+                            },
+                            "privateIPAddressVersion": "IPv4"
+                        }
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                        "name": "[concat(variables('loadBalancerName'), '-backendpool01')]",
+                        "id": "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', variables('loadBalancerName'), concat(variables('loadBalancerName'), '-backendpool01'))]",
+                        "properties": {
+                            "loadBalancerBackendAddresses": []
+                        }
+                    }
+                ],
+                "loadBalancingRules": [
+                    {
+                        "name": "[concat(variables('loadBalancerName'), '-lbrule01')]",
+                        "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('loadBalancerName')), concat('/loadBalancingRules/', variables('loadBalancerName'), '-lbrule01'))]",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('loadBalancerName')), concat('/frontendIPConfigurations/', variables('loadBalancerName'), '-frontendconfig01'))]"
+                            },
+                            "frontendPort": "[concat('625', parameters('SAPInstanceNumber'))]",
+                            "backendPort": "[concat('625', parameters('SAPInstanceNumber'))]",
+                            "enableFloatingIP": true,
+                            "idleTimeoutInMinutes": 30,
+                            "protocol": "Tcp",
+                            "enableTcpReset": false,
+                            "loadDistribution": "Default",
+                            "disableOutboundSnat": true,
+                            "backendAddressPool": {
+                                "id": "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', variables('loadBalancerName'), concat(variables('loadBalancerName'), '-backendpool01'))]"
+                            },
+                            "backendAddressPools": [
+                                {
+                                    "id": "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', variables('loadBalancerName'), concat(variables('loadBalancerName'), '-backendpool01'))]"
+                                }
+                            ],
+                            "probe": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('loadBalancerName')), concat('/probes/', variables('loadBalancerName'), '-probe01'))]"
+                            }
+                        }
+                    }
+                ],
+                "probes": [
+                    {
+                        "name": "[concat(variables('loadBalancerName'), '-probe01')]",
+                        "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('loadBalancerName')), concat('/probes/', variables('loadBalancerName'), '-probe01'))]",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "port": "[concat('625', parameters('SAPInstanceNumber'))]",
+                            "intervalInSeconds": 15,
+                            "numberOfProbes": 2,
+                            "probeThreshold": 1
+                        }
+                    }
+                ],
+                "inboundNatRules": [],
+                "outboundRules": [],
+                "inboundNatPools": []
+            }
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2023-04-01",
+            "name": "[parameters('jumpboxVMPublicIPName')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Standard",
+                "tier": "Regional"
+            },
+            "properties": {
+                "ipAddress": "",
+                "publicIPAddressVersion": "IPv4",
+                "publicIPAllocationMethod": "Static",
+                "idleTimeoutInMinutes": 4,
+                "ipTags": []
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2023-03-01",
+            "name": "[variables('dbVm1Name')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('dbVm1NicName'))]",
+                "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm1Name'), '_DataDisk_0'))]",
+                "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm1Name'), '_DataDisk_1'))]",
+                "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm1Name'), '_DataDisk_2'))]",
+                "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm1Name'), '_DataDisk_3'))]",
+                "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm1Name'), '_DataDisk_shared'))]",
+                "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm1Name'), '_DataDisk_usrsap'))]",
+                "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm1Name'), '_DataDisk_log'))]"
+            ],
+            "zones": [
+                "1"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "Standard_E8ds_v5"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "suse",
+                        "offer": "sles-15-sp4",
+                        "sku": "gen2",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "osType": "Linux",
+                        "name": "[concat(variables('dbVm1Name'), '_OsDisk_1')]",
+                        "createOption": "FromImage",
+                        "caching": "ReadWrite",
+                        "managedDisk": {
+                            "storageAccountType": "Premium_LRS"
+                        },
+                        "deleteOption": "Delete",
+                        "diskSizeGB": 30
+                    },
+                    "dataDisks": [
+                        {
+                            "lun": 0,
+                            "name": "[concat(variables('dbVm1Name'), '_DataDisk_0')]",
+                            "createOption": "Attach",
+                            "caching": "None",
+                            "writeAcceleratorEnabled": false,
+                            "managedDisk": {
+                                "storageAccountType": "Premium_LRS",
+                                "id": "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm1Name'), '_DataDisk_0'))]"
+                            },
+                            "deleteOption": "Delete",
+                            "diskSizeGB": 64,
+                            "toBeDetached": false
+                        },
+                        {
+                            "lun": 1,
+                            "name": "[concat(variables('dbVm1Name'), '_DataDisk_1')]",
+                            "createOption": "Attach",
+                            "caching": "None",
+                            "writeAcceleratorEnabled": false,
+                            "managedDisk": {
+                                "storageAccountType": "Premium_LRS",
+                                "id": "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm1Name'), '_DataDisk_1'))]"
+                            },
+                            "deleteOption": "Delete",
+                            "diskSizeGB": 64,
+                            "toBeDetached": false
+                        },
+                        {
+                            "lun": 2,
+                            "name": "[concat(variables('dbVm1Name'), '_DataDisk_2')]",
+                            "createOption": "Attach",
+                            "caching": "None",
+                            "writeAcceleratorEnabled": false,
+                            "managedDisk": {
+                                "storageAccountType": "Premium_LRS",
+                                "id": "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm1Name'), '_DataDisk_2'))]"
+                            },
+                            "deleteOption": "Delete",
+                            "diskSizeGB": 64,
+                            "toBeDetached": false
+                        },
+                        {
+                            "lun": 3,
+                            "name": "[concat(variables('dbVm1Name'), '_DataDisk_3')]",
+                            "createOption": "Attach",
+                            "caching": "None",
+                            "writeAcceleratorEnabled": false,
+                            "managedDisk": {
+                                "storageAccountType": "Premium_LRS",
+                                "id": "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm1Name'), '_DataDisk_3'))]"
+                            },
+                            "deleteOption": "Delete",
+                            "diskSizeGB": 64,
+                            "toBeDetached": false
+                        },
+                        {
+                            "lun": 4,
+                            "name": "[concat(variables('dbVm1Name'), '_DataDisk_shared')]",
+                            "createOption": "Attach",
+                            "caching": "ReadOnly",
+                            "writeAcceleratorEnabled": false,
+                            "managedDisk": {
+                                "storageAccountType": "StandardSSD_LRS",
+                                "id": "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm1Name'), '_DataDisk_shared'))]"
+                            },
+                            "deleteOption": "Delete",
+                            "diskSizeGB": 128,
+                            "toBeDetached": false
+                        },
+                        {
+                            "lun": 5,
+                            "name": "[concat(variables('dbVm1Name'), '_DataDisk_usrsap')]",
+                            "createOption": "Attach",
+                            "caching": "ReadOnly",
+                            "writeAcceleratorEnabled": false,
+                            "managedDisk": {
+                                "storageAccountType": "StandardSSD_LRS",
+                                "id": "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm1Name'), '_DataDisk_usrsap'))]"
+                            },
+                            "deleteOption": "Delete",
+                            "diskSizeGB": 64,
+                            "toBeDetached": false
+                        },
+                        {
+                            "lun": 6,
+                            "name": "[concat(variables('dbVm1Name'), '_DataDisk_log')]",
+                            "createOption": "Attach",
+                            "caching": "None",
+                            "writeAcceleratorEnabled": false,
+                            "managedDisk": {
+                                "storageAccountType": "Premium_LRS",
+                                "id": "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm1Name'), '_DataDisk_log'))]"
+                            },
+                            "deleteOption": "Delete",
+                            "diskSizeGB": 128,
+                            "toBeDetached": false
+                        }
+                    ],
+                    "diskControllerType": "SCSI"
+                },
+                "osProfile": {
+                    "computerName": "[variables('dbVm1Name')]",
+                    "adminUsername": "[parameters('hanaUsername')]",
+                    "adminPassword": "[parameters('hanaPassword')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": false,
+                        "provisionVMAgent": true,
+                        "patchSettings": {
+                            "patchMode": "ImageDefault",
+                            "assessmentMode": "ImageDefault"
+                        },
+                        "enableVMAgentPlatformUpdates": false
+                    },
+                    "secrets": [],
+                    "allowExtensionOperations": true
+                },
+                "securityProfile": {
+                    "uefiSettings": {
+                        "secureBootEnabled": true,
+                        "vTpmEnabled": true
+                    },
+                    "securityType": "TrustedLaunch"
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('dbVm1NicName'))]",
+                            "properties": {
+                                "deleteOption": "Delete"
+                            }
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": true
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2023-03-01",
+            "name": "[variables('dbVm2Name')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('dbVm2NicName'))]",
+                "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm2Name'), '_DataDisk_0'))]",
+                "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm2Name'), '_DataDisk_1'))]",
+                "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm2Name'), '_DataDisk_2'))]",
+                "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm2Name'), '_DataDisk_3'))]",
+                "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm2Name'), '_DataDisk_shared'))]",
+                "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm2Name'), '_DataDisk_usrsap'))]",
+                "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm2Name'), '_DataDisk_log'))]"
+
+            ],
+            "zones": [
+                "2"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "Standard_E8ds_v5"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "suse",
+                        "offer": "sles-15-sp4",
+                        "sku": "gen2",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "osType": "Linux",
+                        "name": "[concat(variables('dbVm2Name'), '_OsDisk_1')]",
+                        "createOption": "FromImage",
+                        "caching": "ReadWrite",
+                        "managedDisk": {
+                            "storageAccountType": "Premium_LRS"
+                        },
+                        "deleteOption": "Delete",
+                        "diskSizeGB": 30
+                    },
+                    "dataDisks": [
+                        {
+                            "lun": 0,
+                            "name": "[concat(variables('dbVm2Name'), '_DataDisk_0')]",
+                            "createOption": "Attach",
+                            "caching": "None",
+                            "writeAcceleratorEnabled": false,
+                            "managedDisk": {
+                                "storageAccountType": "Premium_LRS",
+                                "id": "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm2Name'), '_DataDisk_0'))]"
+                            },
+                            "deleteOption": "Delete",
+                            "diskSizeGB": 64,
+                            "toBeDetached": false
+                        },
+                        {
+                            "lun": 1,
+                            "name": "[concat(variables('dbVm2Name'), '_DataDisk_1')]",
+                            "createOption": "Attach",
+                            "caching": "None",
+                            "writeAcceleratorEnabled": false,
+                            "managedDisk": {
+                                "storageAccountType": "Premium_LRS",
+                                "id": "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm2Name'), '_DataDisk_1'))]"
+                            },
+                            "deleteOption": "Delete",
+                            "diskSizeGB": 64,
+                            "toBeDetached": false
+                        },
+                        {
+                            "lun": 2,
+                            "name": "[concat(variables('dbVm2Name'), '_DataDisk_2')]",
+                            "createOption": "Attach",
+                            "caching": "None",
+                            "writeAcceleratorEnabled": false,
+                            "managedDisk": {
+                                "storageAccountType": "Premium_LRS",
+                                "id": "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm2Name'), '_DataDisk_2'))]"
+                            },
+                            "deleteOption": "Delete",
+                            "diskSizeGB": 64,
+                            "toBeDetached": false
+                        },
+                        {
+                            "lun": 3,
+                            "name": "[concat(variables('dbVm2Name'), '_DataDisk_3')]",
+                            "createOption": "Attach",
+                            "caching": "None",
+                            "writeAcceleratorEnabled": false,
+                            "managedDisk": {
+                                "storageAccountType": "Premium_LRS",
+                                "id": "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm2Name'), '_DataDisk_3'))]"
+                            },
+                            "deleteOption": "Delete",
+                            "diskSizeGB": 64,
+                            "toBeDetached": false
+                        },
+                        {
+                            "lun": 4,
+                            "name": "[concat(variables('dbVm2Name'), '_DataDisk_shared')]",
+                            "createOption": "Attach",
+                            "caching": "ReadOnly",
+                            "writeAcceleratorEnabled": false,
+                            "managedDisk": {
+                                "storageAccountType": "StandardSSD_LRS",
+                                "id": "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm2Name'), '_DataDisk_shared'))]"
+                            },
+                            "deleteOption": "Delete",
+                            "diskSizeGB": 128,
+                            "toBeDetached": false
+                        },
+                        {
+                            "lun": 5,
+                            "name": "[concat(variables('dbVm2Name'), '_DataDisk_usrsap')]",
+                            "createOption": "Attach",
+                            "caching": "ReadOnly",
+                            "writeAcceleratorEnabled": false,
+                            "managedDisk": {
+                                "storageAccountType": "StandardSSD_LRS",
+                                "id": "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm2Name'), '_DataDisk_usrsap'))]"
+                            },
+                            "deleteOption": "Delete",
+                            "diskSizeGB": 64,
+                            "toBeDetached": false
+                        },
+                        {
+                            "lun": 6,
+                            "name": "[concat(variables('dbVm2Name'), '_DataDisk_log')]",
+                            "createOption": "Attach",
+                            "caching": "None",
+                            "writeAcceleratorEnabled": false,
+                            "managedDisk": {
+                                "storageAccountType": "Premium_LRS",
+                                "id": "[resourceId('Microsoft.Compute/disks', concat(variables('dbVm2Name'), '_DataDisk_log'))]"
+                            },
+                            "deleteOption": "Delete",
+                            "diskSizeGB": 128,
+                            "toBeDetached": false
+                        }
+                    ],
+                    "diskControllerType": "SCSI"
+                },
+                "osProfile": {
+                    "computerName": "[variables('dbVm2Name')]",
+                    "adminUsername": "[parameters('hanaUsername')]",
+                    "adminPassword": "[parameters('hanaPassword')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": false,
+                        "provisionVMAgent": true,
+                        "patchSettings": {
+                            "patchMode": "ImageDefault",
+                            "assessmentMode": "ImageDefault"
+                        },
+                        "enableVMAgentPlatformUpdates": false
+                    },
+                    "secrets": [],
+                    "allowExtensionOperations": true
+                },
+                "securityProfile": {
+                    "uefiSettings": {
+                        "secureBootEnabled": true,
+                        "vTpmEnabled": true
+                    },
+                    "securityType": "TrustedLaunch"
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('dbVm2NicName'))]",
+                            "properties": {
+                                "deleteOption": "Delete"
+                            }
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": true
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2023-03-01",
+            "name": "[parameters('jumpboxVMName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('jumpboxNicName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "Standard_D2s_v5"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "MicrosoftWindowsServer",
+                        "offer": "WindowsServer",
+                        "sku": "2022-datacenter-azure-edition-hotpatch",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "osType": "Windows",
+                        "name": "[concat(parameters('jumpboxVMName'), '_OsDisk_1')]",
+                        "createOption": "FromImage",
+                        "caching": "ReadWrite",
+                        "managedDisk": {
+                            "storageAccountType": "Premium_LRS"
+                        },
+                        "deleteOption": "Delete",
+                        "diskSizeGB": 127
+                    },
+                    "dataDisks": [],
+                    "diskControllerType": "SCSI"
+                },
+                "osProfile": {
+                    "computerName": "[parameters('jumpboxVMName')]",
+                    "adminUsername": "[parameters('jumpboxUsername')]",
+                    "adminPassword": "[parameters('jumpboxPassword')]",
+                    "windowsConfiguration": {
+                        "provisionVMAgent": true,
+                        "enableAutomaticUpdates": true,
+                        "patchSettings": {
+                            "patchMode": "AutomaticByPlatform",
+                            "automaticByPlatformSettings": {
+                                "rebootSetting": "IfRequired",
+                                "bypassPlatformSafetyChecksOnUserSchedule": false
+                            },
+                            "assessmentMode": "ImageDefault",
+                            "enableHotpatching": true
+                        },
+                        "enableVMAgentPlatformUpdates": false
+                    },
+                    "secrets": [],
+                    "allowExtensionOperations": true
+                },
+                "securityProfile": {
+                    "uefiSettings": {
+                        "secureBootEnabled": true,
+                        "vTpmEnabled": true
+                    },
+                    "securityType": "TrustedLaunch"
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('jumpboxNicName'))]",
+                            "properties": {
+                                "deleteOption": "Delete"
+                            }
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": true
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/loadBalancers/backendAddressPools",
+            "apiVersion": "2023-04-01",
+            "name": "[concat(variables('loadBalancerName'), '/', variables('loadBalancerName'), '-backendpool01')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/loadBalancers', variables('loadBalancerName'))]"
+            ],
+            "properties": {
+                "loadBalancerBackendAddresses": []
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2023-04-01",
+            "name": "[variables('dbVm1NicName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', variables('loadBalancerName'), concat(variables('loadBalancerName'), '-backendpool01'))]"
+            ],
+            "kind": "Regular",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "id": "[concat(resourceId('Microsoft.Network/networkInterfaces', variables('dbVm1NicName')), '/ipConfigurations/ipconfig1')]",
+                        "etag": "W/\"b82ce134-d1bb-453b-866a-b847097ce49c\"",
+                        "type": "Microsoft.Network/networkInterfaces/ipConfigurations",
+                        "properties": {
+                            "provisioningState": "Succeeded",
+                            "privateIPAddress": "",
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[concat(if(equals(parameters('newOrExistingVNet'), 'existing'), parameters('virtualNetworkResourceID'), resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))), '/subnets/db-subnet')]"
+                            },
+                            "primary": true,
+                            "privateIPAddressVersion": "IPv4",
+                            "loadBalancerBackendAddressPools": [
+                                {
+                                    "id": "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', variables('loadBalancerName'), concat(variables('loadBalancerName'), '-backendpool01'))]"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": []
+                },
+                "enableAcceleratedNetworking": true,
+                "enableIPForwarding": false,
+                "disableTcpStateTracking": false,
+                "networkSecurityGroup": {
+                    "id": "[if(equals(parameters('newOrExistingVNet'), 'existing'), parameters('networkSecurityGroupName'), resourceId('Microsoft.Network/networkSecurityGroups', variables('dbSubnetNSG')))]"
+                },
+                "nicType": "Standard",
+                "auxiliaryMode": "None",
+                "auxiliarySku": "None"
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2023-04-01",
+            "name": "[variables('dbVm2NicName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', variables('loadBalancerName'), concat(variables('loadBalancerName'), '-backendpool01'))]"
+            ],
+            "kind": "Regular",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "id": "[concat(resourceId('Microsoft.Network/networkInterfaces', variables('dbVm2NicName')), '/ipConfigurations/ipconfig1')]",
+                        "etag": "W/\"6fd6635e-9453-4043-be08-4f4e693d3bf8\"",
+                        "type": "Microsoft.Network/networkInterfaces/ipConfigurations",
+                        "properties": {
+                            "provisioningState": "Succeeded",
+                            "privateIPAddress": "",
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[concat(if(equals(parameters('newOrExistingVNet'), 'existing'), parameters('virtualNetworkResourceID'), resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))), '/subnets/db-subnet')]"
+                            },
+                            "primary": true,
+                            "privateIPAddressVersion": "IPv4",
+                            "loadBalancerBackendAddressPools": [
+                                {
+                                    "id": "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', variables('loadBalancerName'), concat(variables('loadBalancerName'), '-backendpool01'))]"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": []
+                },
+                "enableAcceleratedNetworking": true,
+                "enableIPForwarding": false,
+                "disableTcpStateTracking": false,
+                "networkSecurityGroup": {
+                    "id": "[if(equals(parameters('newOrExistingVNet'), 'existing'), parameters('networkSecurityGroupName'), resourceId('Microsoft.Network/networkSecurityGroups', variables('dbSubnetNSG')))]"
+                },
+                "nicType": "Standard",
+                "auxiliaryMode": "None",
+                "auxiliarySku": "None"
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2023-04-01",
+            "name": "[variables('jumpboxNicName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', parameters('jumpboxVMPublicIPName'))]",
+                "[resourceId('Microsoft.Resources/deployments', 'newVnetWithAzFW')]",
+                "[resourceId('Microsoft.Resources/deployments', 'newVnetWithNatgw')]"
+            ],
+            "kind": "Regular",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "id": "[concat(resourceId('Microsoft.Network/networkInterfaces', variables('jumpboxNicName')), '/ipConfigurations/ipconfig1')]",
+                        "etag": "W/\"92860e0a-bfc2-4dfd-b26c-663909be65ae\"",
+                        "type": "Microsoft.Network/networkInterfaces/ipConfigurations",
+                        "properties": {
+                            "provisioningState": "Succeeded",
+                            "privateIPAddress": "",
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('jumpboxVMPublicIPName'))]",
+                                "properties": {
+                                    "deleteOption": "Delete"
+                                }
+                            },
+                            "subnet": {
+                                "id": "[concat(if(equals(parameters('newOrExistingVNet'), 'existing'), parameters('virtualNetworkResourceID'), resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))), '/subnets/jumpbox-subnet')]"
+                            },
+                            "primary": true,
+                            "privateIPAddressVersion": "IPv4"
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": []
+                },
+                "enableAcceleratedNetworking": true,
+                "enableIPForwarding": false,
+                "disableTcpStateTracking": false,
+                "nicType": "Standard",
+                "auxiliaryMode": "None",
+                "auxiliarySku": "None"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('dbVm1Name'), '/diskConfig')]",
+            "condition": "[parameters('runDiskConfigurationScript')]",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2019-03-01",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines', variables('dbVm1Name'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "CustomScript",
+                "typeHandlerVersion": "2.1",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "timestamp": "[parameters('timestamp')]"
+                },
+                "protectedSettings": {
+                    "commandToExecute": "[concat('sh disk_config.sh ', parameters('SAPInstanceID'), ' ', parameters('hanaPassword'))]",
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/disk_config.sh"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('dbVm2Name'), '/diskConfig')]",
+            "condition": "[parameters('runDiskConfigurationScript')]",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2019-03-01",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines', variables('dbVm2Name'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "CustomScript",
+                "typeHandlerVersion": "2.1",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "timestamp": "[parameters('timestamp')]"
+                },
+                "protectedSettings": {
+                    "commandToExecute": "[concat('sh disk_config.sh ', parameters('SAPInstanceID'), ' ', parameters('hanaPassword'))]",
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/disk_config.sh"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('dbVm1Name'), '/sapInstall')]",
+            "condition": "[parameters('installSAPSoftwareAutomatically')]",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2019-03-01",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines', variables('dbVm1Name'))]",
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('dbVm1Name'), 'diskConfig')]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "CustomScript",
+                "typeHandlerVersion": "2.1",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "timestamp": "[parameters('timestamp')]"
+                },
+                "protectedSettings": {
+                    "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFilePath'))]",
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/sap_install.sh"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('dbVm2Name'), '/sapInstall')]",
+            "condition": "[parameters('installSAPSoftwareAutomatically')]",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2019-03-01",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines', variables('dbVm2Name'))]",
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('dbVm2Name'), 'diskConfig')]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "CustomScript",
+                "typeHandlerVersion": "2.1",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "timestamp": "[parameters('timestamp')]"
+                },
+                "protectedSettings": {
+                    "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFilePath'))]",
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/sap_install.sh"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2023-01-02",
+            "name": "[concat(variables('dbVm1Name'), '_DataDisk_0')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Premium_LRS",
+                "tier": "Premium"
+            },
+            "zones": [
+                "1"
+            ],
+            "properties": {
+                "creationData": {
+                    "createOption": "Empty"
+                },
+                "diskSizeGB": 64,
+                "diskIOPSReadWrite": 240,
+                "diskMBpsReadWrite": 50,
+                "encryption": {
+                    "type": "EncryptionAtRestWithPlatformKey"
+                },
+                "networkAccessPolicy": "AllowAll",
+                "publicNetworkAccess": "Enabled",
+                "diskState": "Attached",
+                "tier": "P6"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2023-01-02",
+            "name": "[concat(variables('dbVm1Name'), '_DataDisk_1')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Premium_LRS",
+                "tier": "Premium"
+            },
+            "zones": [
+                "1"
+            ],
+            "properties": {
+                "creationData": {
+                    "createOption": "Empty"
+                },
+                "diskSizeGB": 64,
+                "diskIOPSReadWrite": 240,
+                "diskMBpsReadWrite": 50,
+                "encryption": {
+                    "type": "EncryptionAtRestWithPlatformKey"
+                },
+                "networkAccessPolicy": "AllowAll",
+                "publicNetworkAccess": "Enabled",
+                "diskState": "Attached",
+                "tier": "P6"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2023-01-02",
+            "name": "[concat(variables('dbVm1Name'), '_DataDisk_2')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Premium_LRS",
+                "tier": "Premium"
+            },
+            "zones": [
+                "1"
+            ],
+            "properties": {
+                "creationData": {
+                    "createOption": "Empty"
+                },
+                "diskSizeGB": 64,
+                "diskIOPSReadWrite": 240,
+                "diskMBpsReadWrite": 50,
+                "encryption": {
+                    "type": "EncryptionAtRestWithPlatformKey"
+                },
+                "networkAccessPolicy": "AllowAll",
+                "publicNetworkAccess": "Enabled",
+                "diskState": "Attached",
+                "tier": "P6"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2023-01-02",
+            "name": "[concat(variables('dbVm1Name'), '_DataDisk_3')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Premium_LRS",
+                "tier": "Premium"
+            },
+            "zones": [
+                "1"
+            ],
+            "properties": {
+                "creationData": {
+                    "createOption": "Empty"
+                },
+                "diskSizeGB": 64,
+                "diskIOPSReadWrite": 240,
+                "diskMBpsReadWrite": 50,
+                "encryption": {
+                    "type": "EncryptionAtRestWithPlatformKey"
+                },
+                "networkAccessPolicy": "AllowAll",
+                "publicNetworkAccess": "Enabled",
+                "diskState": "Attached",
+                "tier": "P6"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2023-01-02",
+            "name": "[concat(variables('dbVm1Name'), '_DataDisk_shared')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "StandardSSD_LRS",
+                "tier": "Standard"
+            },
+            "zones": [
+                "1"
+            ],
+            "properties": {
+                "creationData": {
+                    "createOption": "Empty"
+                },
+                "diskSizeGB": 128,
+                "diskIOPSReadWrite": 500,
+                "diskMBpsReadWrite": 60,
+                "encryption": {
+                    "type": "EncryptionAtRestWithPlatformKey"
+                },
+                "networkAccessPolicy": "AllowAll",
+                "publicNetworkAccess": "Enabled",
+                "diskState": "Attached"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2023-01-02",
+            "name": "[concat(variables('dbVm1Name'), '_DataDisk_usrsap')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "StandardSSD_LRS",
+                "tier": "Standard"
+            },
+            "zones": [
+                "1"
+            ],
+            "properties": {
+                "creationData": {
+                    "createOption": "Empty"
+                },
+                "diskSizeGB": 64,
+                "diskIOPSReadWrite": 500,
+                "diskMBpsReadWrite": 60,
+                "encryption": {
+                    "type": "EncryptionAtRestWithPlatformKey"
+                },
+                "networkAccessPolicy": "AllowAll",
+                "publicNetworkAccess": "Enabled",
+                "diskState": "Attached"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2023-01-02",
+            "name": "[concat(variables('dbVm1Name'), '_DataDisk_log')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Premium_LRS",
+                "tier": "Premium"
+            },
+            "zones": [
+                "1"
+            ],
+            "properties": {
+                "creationData": {
+                    "createOption": "Empty"
+                },
+                "diskSizeGB": 128,
+                "diskIOPSReadWrite": 500,
+                "diskMBpsReadWrite": 100,
+                "encryption": {
+                    "type": "EncryptionAtRestWithPlatformKey"
+                },
+                "networkAccessPolicy": "AllowAll",
+                "publicNetworkAccess": "Enabled",
+                "diskState": "Attached",
+                "tier": "P10"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2023-01-02",
+            "name": "[concat(variables('dbVm2Name'), '_DataDisk_0')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Premium_LRS",
+                "tier": "Premium"
+            },
+            "zones": [
+                "2"
+            ],
+            "properties": {
+                "creationData": {
+                    "createOption": "Empty"
+                },
+                "diskSizeGB": 64,
+                "diskIOPSReadWrite": 240,
+                "diskMBpsReadWrite": 50,
+                "encryption": {
+                    "type": "EncryptionAtRestWithPlatformKey"
+                },
+                "networkAccessPolicy": "AllowAll",
+                "publicNetworkAccess": "Enabled",
+                "diskState": "Attached",
+                "tier": "P6"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2023-01-02",
+            "name": "[concat(variables('dbVm2Name'), '_DataDisk_1')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Premium_LRS",
+                "tier": "Premium"
+            },
+            "zones": [
+                "2"
+            ],
+            "properties": {
+                "creationData": {
+                    "createOption": "Empty"
+                },
+                "diskSizeGB": 64,
+                "diskIOPSReadWrite": 240,
+                "diskMBpsReadWrite": 50,
+                "encryption": {
+                    "type": "EncryptionAtRestWithPlatformKey"
+                },
+                "networkAccessPolicy": "AllowAll",
+                "publicNetworkAccess": "Enabled",
+                "diskState": "Attached",
+                "tier": "P6"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2023-01-02",
+            "name": "[concat(variables('dbVm2Name'), '_DataDisk_2')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Premium_LRS",
+                "tier": "Premium"
+            },
+            "zones": [
+                "2"
+            ],
+            "properties": {
+                "creationData": {
+                    "createOption": "Empty"
+                },
+                "diskSizeGB": 64,
+                "diskIOPSReadWrite": 240,
+                "diskMBpsReadWrite": 50,
+                "encryption": {
+                    "type": "EncryptionAtRestWithPlatformKey"
+                },
+                "networkAccessPolicy": "AllowAll",
+                "publicNetworkAccess": "Enabled",
+                "diskState": "Attached",
+                "tier": "P6"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2023-01-02",
+            "name": "[concat(variables('dbVm2Name'), '_DataDisk_3')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Premium_LRS",
+                "tier": "Premium"
+            },
+            "zones": [
+                "2"
+            ],
+            "properties": {
+                "creationData": {
+                    "createOption": "Empty"
+                },
+                "diskSizeGB": 64,
+                "diskIOPSReadWrite": 240,
+                "diskMBpsReadWrite": 50,
+                "encryption": {
+                    "type": "EncryptionAtRestWithPlatformKey"
+                },
+                "networkAccessPolicy": "AllowAll",
+                "publicNetworkAccess": "Enabled",
+                "diskState": "Attached",
+                "tier": "P6"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2023-01-02",
+            "name": "[concat(variables('dbVm2Name'), '_DataDisk_shared')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "StandardSSD_LRS",
+                "tier": "Standard"
+            },
+            "zones": [
+                "2"
+            ],
+            "properties": {
+                "creationData": {
+                    "createOption": "Empty"
+                },
+                "diskSizeGB": 128,
+                "diskIOPSReadWrite": 500,
+                "diskMBpsReadWrite": 60,
+                "encryption": {
+                    "type": "EncryptionAtRestWithPlatformKey"
+                },
+                "networkAccessPolicy": "AllowAll",
+                "publicNetworkAccess": "Enabled",
+                "diskState": "Attached"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2023-01-02",
+            "name": "[concat(variables('dbVm2Name'), '_DataDisk_usrsap')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "StandardSSD_LRS",
+                "tier": "Standard"
+            },
+            "zones": [
+                "2"
+            ],
+            "properties": {
+                "creationData": {
+                    "createOption": "Empty"
+                },
+                "diskSizeGB": 64,
+                "diskIOPSReadWrite": 500,
+                "diskMBpsReadWrite": 60,
+                "encryption": {
+                    "type": "EncryptionAtRestWithPlatformKey"
+                },
+                "networkAccessPolicy": "AllowAll",
+                "publicNetworkAccess": "Enabled",
+                "diskState": "Attached"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2023-01-02",
+            "name": "[concat(variables('dbVm2Name'), '_DataDisk_log')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Premium_LRS",
+                "tier": "Premium"
+            },
+            "zones": [
+                "2"
+            ],
+            "properties": {
+                "creationData": {
+                    "createOption": "Empty"
+                },
+                "diskSizeGB": 128,
+                "diskIOPSReadWrite": 500,
+                "diskMBpsReadWrite": 100,
+                "encryption": {
+                    "type": "EncryptionAtRestWithPlatformKey"
+                },
+                "networkAccessPolicy": "AllowAll",
+                "publicNetworkAccess": "Enabled",
+                "diskState": "Attached",
+                "tier": "P10"
+            }
+        }
+    ]
+}
