@@ -2,7 +2,7 @@
 
 # Establish variables
 sapInstanceId=$1
-sapInstanceLower=$(echo $sapInstanceId | tr '[:upper:]' '[:lower:]')
+sapInstanceIdLower=$(echo $sapInstanceId | tr '[:upper:]' '[:lower:]')
 sapInstanceNumber=$2
 sapUser=${sapInstanceIdLower}adm
 sapPassword=$3
@@ -36,7 +36,7 @@ set timeout -1
 spawn /hana/shared/$sapInstanceId/download/hanainstall/DATA_UNITS/HDB_SERVER_LINUX_X86_64/hdblcm --ignore=check_signature_file
 expect -exact "Enter selected action index \[4\]: "
 send "1\r"
-expect -exact "Enter comma-separated list of the selected indices \[3\]: "
+expect -exact "Enter comma-separated list of the selected indices \[3,4\]: "
 send "2,3\r"
 expect -exact "Enter Installation Path \[/hana/shared\]: "
 send "/hana/shared\r"
