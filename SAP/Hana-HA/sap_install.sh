@@ -30,7 +30,11 @@ sudo unzip -d /hana/shared/$sapInstanceId/download/hanainstall /hana/shared/$sap
 chmod +x /hana/shared/$sapInstanceId/download/hanainstall/DATA_UNITS/HDB_SERVER_LINUX_X86_64
 
 # Install prereqs
-sudo zypper -n install libgcc_s1 libstdc++6 libatomic1 insserv-compat libtool
+sudo zypper -n install libgcc_s1
+sudo zypper -n install libstdc++6
+sudo zypper -n install libatomic1
+sudo zypper -n install insserv-compat
+sudo zypper -n install libtool
 
 # Launch the SAP Installer and proceed through the config questions
 expect <<EOF
