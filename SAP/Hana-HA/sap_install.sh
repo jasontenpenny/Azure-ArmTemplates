@@ -9,6 +9,10 @@ sapPassword=$3
 installSource=$4
 installSourceFile=$5
 
+# Set up log file
+set -v -x -E
+log_file="/tmp/$(hostname)_sapInstall_$(date +%Y-%m-%d_%H-%M-%S).log"
+
 # Make Download directory
 sudo mkdir /hana/shared/$sapInstanceId/download
 sudo mkdir /hana/shared/$sapInstanceId/download/sapsoftware
@@ -70,7 +74,7 @@ expect -exact "Enter System Administrator ($sapUser) Password: "
 send "$sapPassword\r"
 expect -exact "Confirm System Administrator ($sapUser) Password: "
 send "$sapPassword\r"
-expect -exact "Enter System Administrator Home Directory \[/usr/sap/HN1/home\]: "
+expect -exact "Enter System Administrator Home Directory \[/usr/sap/$sapInstanceId/home\]: "
 send "/usr/sap/$sapInstanceId/home\r"
 expect -exact "Enter System Administrator Login Shell \[/bin/sh\]: "
 send "\r"
