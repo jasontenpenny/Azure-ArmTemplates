@@ -96,7 +96,7 @@
     "resources": [
         {
             "type": "Microsoft.Compute/virtualMachines/extensions",
-            "name": "[concat(parameters('vm1ResourceID'), '/sapInstall')]",
+            "name": "[concat(variables('vm1Name'), '/sapInstall')]",
             "location": "[resourceGroup().location]",
             "condition": "[not(parameters('isHanaAlreadyInstalled'))]",
             "apiVersion": "2019-03-01",
@@ -118,7 +118,7 @@
         },
         {
             "type": "Microsoft.Compute/virtualMachines/extensions",
-            "name": "[concat(parameters('vm2ResourceID'), '/sapInstall')]",
+            "name": "[concat(variables('vm2Name'), '/sapInstall')]",
             "location": "[resourceGroup().location]",
             "condition": "[and(not(equals(parameters('vm2ResourceID'), '')), not(parameters('isHanaAlreadyInstalled')))]",
             "apiVersion": "2019-03-01",
@@ -140,11 +140,11 @@
         },
         {
             "type": "Microsoft.Compute/virtualMachines/extensions",
-            "name": "[concat(parameters('vm1ResourceID'), '/haPrereqsInstall')]",
+            "name": "[concat(variables('vm1Name'), '/haPrereqsInstall')]",
             "location": "[resourceGroup().location]",
             "condition": "[parameters('configureHA')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm1ResourceID'), 'sapInstall')]"
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('vm1Name'), 'sapInstall')]"
             ],
             "apiVersion": "2019-03-01",
             "properties": {
@@ -165,11 +165,11 @@
         },
         {
             "type": "Microsoft.Compute/virtualMachines/extensions",
-            "name": "[concat(parameters('vm2ResourceID'), '/haPrereqsInstall')]",
+            "name": "[concat(variables('vm2Name'), '/haPrereqsInstall')]",
             "location": "[resourceGroup().location]",
             "condition": "[parameters('configureHA')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm2ResourceID'), 'sapInstall')]"
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('vm2Name'), 'sapInstall')]"
             ],
             "apiVersion": "2019-03-01",
             "properties": {
@@ -190,11 +190,11 @@
         },
         {
             "type": "Microsoft.Compute/virtualMachines/extensions",
-            "name": "[concat(parameters('vm1ResourceID'), '/haConfig')]",
+            "name": "[concat(variables('vm1Name'), '/haConfig')]",
             "location": "[resourceGroup().location]",
             "condition": "[parameters('configureHA')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm1ResourceID'), 'haPrereqsInstall')]"
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('vm1Name'), 'haPrereqsInstall')]"
             ],
             "apiVersion": "2019-03-01",
             "properties": {
@@ -215,11 +215,11 @@
         },
         {
             "type": "Microsoft.Compute/virtualMachines/extensions",
-            "name": "[concat(parameters('vm2ResourceID'), '/haConfig')]",
+            "name": "[concat(variables('vm2Name'), '/haConfig')]",
             "location": "[resourceGroup().location]",
             "condition": "[parameters('configureHA')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm2ResourceID'), 'haPrereqsInstall')]"
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('vm2Name'), 'haPrereqsInstall')]"
             ],
             "apiVersion": "2019-03-01",
             "properties": {
