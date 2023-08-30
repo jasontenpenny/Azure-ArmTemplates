@@ -34,7 +34,7 @@ sudo zypper -n install libgcc_s1 libstdc++6 libatomic1 insserv-compat libtool
 
 # Launch the SAP Installer and proceed through the config questions
 expect <<EOF
-set timeout -1
+set timeout 1500
 spawn /hana/shared/$sapInstanceId/download/hanainstall/DATA_UNITS/HDB_SERVER_LINUX_X86_64/hdblcm --ignore=check_signature_file
 expect -exact "Enter selected action index \[4\]: "
 send "1\r"
