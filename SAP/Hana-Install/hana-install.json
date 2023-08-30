@@ -1,0 +1,130 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "metadata": {
+        "description": "Installs SAP software on up to 2 pre-existing VMs.",
+        "author": "Jason Tenpenny",
+        "Enablement": "https://learn.microsoft.com/en-us/azure/sap/workloads/sap-hana-high-availability",
+        "deploymentLinkInternal": "",
+        "tsg": ""
+    },
+    "parameters": {
+        "vm1ResourceID": {
+            "type": "string",
+            "metadata": {
+                "description": "Full resource ID of your first VM"
+            }
+        },
+        "vm2ResourceID": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "If installing for an HA setup, provide the full resource ID of a second VM"
+            }
+        },
+        "SAPInstanceID": {
+            "type": "string",
+            "defaultValue": "HN1",
+            "maxLength": 3,
+            "minLength": 3,
+            "metadata": {
+                "description": "Enter the SAP Instance ID you plan to use."
+            }
+        },
+        "SAPInstanceNumber": {
+            "defaultValue": "00",
+            "maxLength": 2,
+            "minLength": 2,
+            "type": "string",
+            "metadata": {
+                "description": "Enter the Database Instance Number you plan to use. Most commonly this is left at '00'."
+            }
+        },
+        "hanaPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Enter a password to use for the Hana users created during install."
+            }
+        },
+        "configureHA": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "Choose whether to perform post-install configuration for HA between the two VMs"
+            }
+        },
+        "SAPInstallMediaStorageAccountName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of storage account where SAP Media exists. This will only be used if you elect to install SAP automatically. If you are not installing SAP, fill with a random value."
+            }
+        },
+        "SAPInstallMediaFilePath": {
+            "type": "string",
+            "metadata": {
+                "description": "Enter the folder path to the SAP Installation media. It should be in the format 'blobName/folder/path'. Do not include the filename or a trailing space. This will only be used if you elect to install SAP automatically. If you are not installing SAP, fill with a random value."
+            }
+        },
+        "SAPInstallMediaFileName": {
+            "type": "string",
+            "metadata": {
+                "description": "Enter the filename of the SAP install package (eg. '50157071.ZIP'). This will only be used if you elect to install SAP automatically. If you are not installing SAP, fill with a random value."
+            }
+        },
+        "utcValue": {
+            "defaultValue": "[utcNow()]",
+            "type": "string",
+            "metadata": {
+                "description": "Time in UTC. You should not need to modify this value."
+            }
+        }
+    },
+    "variables": {
+                "sapInstallMediaUri": "[concat('https://', parameters('SAPInstallMediaStorageAccountName'), '.blob.core.windows.net/', parameters('SAPInstallMediaFilePath'), '/', parameters('SAPInstallMediaFileName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(parameters('vm1ResourceID'), '/sapInstall')]",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2019-03-01",
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "CustomScript",
+                "typeHandlerVersion": "2.1",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "timestamp": 123456789
+                },
+                "protectedSettings": {
+                    "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFileName'))]",
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/sap_install.sh"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(parameters('vm2ResourceID'), '/sapInstall')]",
+            "location": "[resourceGroup().location]",
+            "condition": "[not(equals(parameters('vm2ResourceID'), ''))]",
+            "apiVersion": "2019-03-01",
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "CustomScript",
+                "typeHandlerVersion": "2.1",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "timestamp": 123456789
+                },
+                "protectedSettings": {
+                    "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFileName'))]",
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/sap_install.sh"
+                    ]
+                }
+            }
+        }
+    ]
+}
