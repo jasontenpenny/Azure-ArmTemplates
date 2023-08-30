@@ -208,7 +208,7 @@
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh sap_ha_config.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('vm2Name'))]",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/dev/Hana-HA/sap_ha_config.sh"
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/dev/Hana-Install/sap_ha_config.sh"
                     ]
                 }
             }
@@ -233,7 +233,7 @@
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh sap_ha_config.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('vm1Name'))]",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/dev/Hana-HA/sap_ha_config.sh"
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/dev/Hana-Install/sap_ha_config.sh"
                     ]
                 }
             }
