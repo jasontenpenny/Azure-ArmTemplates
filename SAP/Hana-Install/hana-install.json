@@ -46,6 +46,13 @@
                 "description": "Enter a password to use for the Hana users created during install."
             }
         },
+        "isHanaAlreadyInstalled": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "Used to skip the install and just configure HA"
+            }
+        },
         "configureHA": {
             "type": "bool",
             "defaultValue": false,
@@ -80,13 +87,18 @@
         }
     },
     "variables": {
-                "sapInstallMediaUri": "[concat('https://', parameters('SAPInstallMediaStorageAccountName'), '.blob.core.windows.net/', parameters('SAPInstallMediaFilePath'), '/', parameters('SAPInstallMediaFileName'))]"
+                "sapInstallMediaUri": "[concat('https://', parameters('SAPInstallMediaStorageAccountName'), '.blob.core.windows.net/', parameters('SAPInstallMediaFilePath'), '/', parameters('SAPInstallMediaFileName'))]",
+                "vm1ResourceIdParse": "[split(parameters('vm1ResourceID'), '/')]",
+                "vm1Name": "[variables('vm1ResourceIdParse')[8]]",
+                "vm2ResourceIdParse": "[split(parameters('vm2ResourceID'), '/')]",
+                "vm2Name": "[variables('vm2ResourceIdParse')[8]]"
     },
     "resources": [
         {
             "type": "Microsoft.Compute/virtualMachines/extensions",
             "name": "[concat(parameters('vm1ResourceID'), '/sapInstall')]",
             "location": "[resourceGroup().location]",
+            "condition": "[not(parameters('isHanaAlreadyInstalled'))]",
             "apiVersion": "2019-03-01",
             "properties": {
                 "publisher": "Microsoft.Azure.Extensions",
@@ -108,7 +120,7 @@
             "type": "Microsoft.Compute/virtualMachines/extensions",
             "name": "[concat(parameters('vm2ResourceID'), '/sapInstall')]",
             "location": "[resourceGroup().location]",
-            "condition": "[not(equals(parameters('vm2ResourceID'), ''))]",
+            "condition": "[and(not(equals(parameters('vm2ResourceID'), '')), not(parameters('isHanaAlreadyInstalled')))]",
             "apiVersion": "2019-03-01",
             "properties": {
                 "publisher": "Microsoft.Azure.Extensions",
@@ -122,6 +134,106 @@
                     "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFileName'))]",
                     "fileUris": [
                         "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/sap_install.sh"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(parameters('vm1ResourceID'), '/haPrereqsInstall')]",
+            "location": "[resourceGroup().location]",
+            "condition": "[parameters('configureHA')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm1ResourceID'), 'sapInstall')]"
+            ],
+            "apiVersion": "2019-03-01",
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "CustomScript",
+                "typeHandlerVersion": "2.1",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "timestamp": 234567891
+                },
+                "protectedSettings": {
+                    "commandToExecute": "sh ha_prereqs_install.sh",
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/dev/Hana-HA/ha_prereqs_install.sh"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(parameters('vm2ResourceID'), '/haPrereqsInstall')]",
+            "location": "[resourceGroup().location]",
+            "condition": "[parameters('configureHA')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm2ResourceID'), 'sapInstall')]"
+            ],
+            "apiVersion": "2019-03-01",
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "CustomScript",
+                "typeHandlerVersion": "2.1",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "timestamp": 234567891
+                },
+                "protectedSettings": {
+                    "commandToExecute": "sh ha_prereqs_install.sh",
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/dev/Hana-HA/ha_prereqs_install.sh"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(parameters('vm1ResourceID'), '/haConfig')]",
+            "location": "[resourceGroup().location]",
+            "condition": "[parameters('configureHA')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm1ResourceID'), 'haPrereqsInstall')]"
+            ],
+            "apiVersion": "2019-03-01",
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "CustomScript",
+                "typeHandlerVersion": "2.1",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "timestamp": 345678912
+                },
+                "protectedSettings": {
+                    "commandToExecute": "[concat('sh sap_ha_config.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('vm2Name'))]",
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/dev/Hana-HA/sap_ha_config.sh"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(parameters('vm2ResourceID'), '/haConfig')]",
+            "location": "[resourceGroup().location]",
+            "condition": "[parameters('configureHA')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm2ResourceID'), 'haPrereqsInstall')]"
+            ],
+            "apiVersion": "2019-03-01",
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "CustomScript",
+                "typeHandlerVersion": "2.1",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "timestamp": 345678912
+                },
+                "protectedSettings": {
+                    "commandToExecute": "[concat('sh sap_ha_config.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('vm1Name'))]",
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/dev/Hana-HA/sap_ha_config.sh"
                     ]
                 }
             }
