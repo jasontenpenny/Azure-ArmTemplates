@@ -15,13 +15,12 @@ sudo mkdir /hana/shared/$sapInstanceId/download/sapsoftware
 
 # Copy SAP Installer from storage location
 sudo wget -O /hana/shared/$sapInstanceId/download/sapsoftware/$installSourceFile $installSource
-installFileName=$(ls /hana/shared/$sapInstanceId/download/sapsoftware)
 
 # Make install directory
 sudo mkdir /hana/shared/$sapInstanceId/download/hanainstall
 
 # Extract installer
-sudo unzip -d /hana/shared/$sapInstanceId/download/hanainstall /hana/shared/$sapInstanceId/download/sapsoftware/$installFileName
+sudo unzip -d /hana/shared/$sapInstanceId/download/hanainstall /hana/shared/$sapInstanceId/download/sapsoftware/$installSourceFile
 
 # Permissions fix on the installation media
 chmod +x /hana/shared/$sapInstanceId/download/hanainstall/DATA_UNITS/HDB_SERVER_LINUX_X86_64

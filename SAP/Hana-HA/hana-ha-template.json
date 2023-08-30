@@ -27,6 +27,13 @@
                 "description": "Enter the Database Instance Number you plan to use. Most commonly this is left at '00'."
             }
         },
+        "deployJumpbox": {
+            "defaultValue": true,
+            "type": "bool",
+            "metadata": {
+                "description": "Choose whether or not to deploy a jumpbox VM. You can change to false if you already have one."
+            }
+        },
         "jumpboxUsername": {
             "defaultValue": "azadmin",
             "type": "string",
@@ -351,6 +358,7 @@
             "type": "Microsoft.Network/publicIPAddresses",
             "apiVersion": "2023-04-01",
             "name": "[parameters('jumpboxVMPublicIPName')]",
+            "condition": "[parameters('deployJumpbox')]",
             "location": "[resourceGroup().location]",
             "sku": {
                 "name": "Standard",
@@ -733,6 +741,7 @@
             "type": "Microsoft.Compute/virtualMachines",
             "apiVersion": "2023-03-01",
             "name": "[parameters('jumpboxVMName')]",
+            "condition": "[parameters('deployJumpbox')]",
             "location": "[resourceGroup().location]",
             "dependsOn": [
                 "[resourceId('Microsoft.Network/networkInterfaces', variables('jumpboxNicName'))]"
@@ -916,6 +925,7 @@
             "type": "Microsoft.Network/networkInterfaces",
             "apiVersion": "2023-04-01",
             "name": "[variables('jumpboxNicName')]",
+            "condition": "[parameters('deployJumpbox')]",
             "location": "[resourceGroup().location]",
             "dependsOn": [
                 "[resourceId('Microsoft.Network/publicIPAddresses', parameters('jumpboxVMPublicIPName'))]",
