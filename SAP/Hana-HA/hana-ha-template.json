@@ -1027,7 +1027,8 @@
             "apiVersion": "2019-03-01",
             "dependsOn": [
                 "[resourceId('Microsoft.Compute/virtualMachines', variables('dbVm1Name'))]",
-                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('dbVm1Name'), 'diskConfig')]"
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('dbVm1Name'), 'diskConfig')]",
+                "[resourceId('Microsoft.Resources/deploymentScripts', 'removeDiskConfigScript')]"
             ],
             "properties": {
                 "publisher": "Microsoft.Azure.Extensions",
@@ -1053,7 +1054,8 @@
             "apiVersion": "2019-03-01",
             "dependsOn": [
                 "[resourceId('Microsoft.Compute/virtualMachines', variables('dbVm2Name'))]",
-                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('dbVm2Name'), 'diskConfig')]"
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('dbVm2Name'), 'diskConfig')]",
+                "[resourceId('Microsoft.Resources/deploymentScripts', 'removeDiskConfigScript')]"
             ],
             "properties": {
                 "publisher": "Microsoft.Azure.Extensions",
@@ -1069,6 +1071,33 @@
                         "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/sap_install.sh"
                     ]
                 }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deploymentScripts",
+            "apiVersion": "2020-10-01",
+            "name": "removeDiskConfigScript",
+            "location": "[resourceGroup().location]",
+            "kind": "AzurePowerShell",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('dbVm1Name'), 'diskConfig')]",
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('dbVm2Name'), 'diskConfig')]",
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userIdentity'))]"
+            ],
+            "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                    "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userIdentity')))]": {}
+                }
+            }, 
+            "properties": {
+                "forceUpdateTag": "[parameters('utcValue')]",
+                "azPowerShellVersion": "9.0",
+                "timeout": "PT30M",
+                "arguments": "[format(' -rgName {0} -subID {1} -vm1Name {2} -vm2Name {3}', resourceGroup().name, subscription().subscriptionId, variables('dbVm1Name'), variables('dbVm2Name'))]",
+                "scriptContent": "param ([string] [Parameter(Mandatory=$true)] $rgName, [string] [Parameter(Mandatory=$true)] $subID, [string] [Parameter(Mandatory=$true)] $vm1Name, [string] [Parameter(Mandatory=$true)] $vm2Name) $ErrorActionPreference = 'Stop'; Set-AzContext -SubscriptionId $subID; Set-AzDefault -ResourceGroupName $rgName; Start-Sleep -Seconds 60; Remove-AzVMExtension -ResourceGroupName $rgName -VMName $vm1Name -Name 'diskConfig' -Force; Remove-AzVMExtension -ResourceGroupName $rgName -VMName $vm2Name -Name 'diskConfig' -Force;",
+                "cleanupPreference": "OnSuccess",
+                "retentionInterval": "P1D"
             }
         },
         {
