@@ -397,7 +397,7 @@
                 "storageProfile": {
                     "imageReference": {
                         "publisher": "suse",
-                        "offer": "sles-15-sp4",
+                        "offer": "sles-sap-15-sp4",
                         "sku": "gen2",
                         "version": "latest"
                     },
@@ -580,7 +580,7 @@
                 "storageProfile": {
                     "imageReference": {
                         "publisher": "suse",
-                        "offer": "sles-15-sp4",
+                        "offer": "sles-sap-15-sp4",
                         "sku": "gen2",
                         "version": "latest"
                     },
@@ -1036,7 +1036,7 @@
                 "typeHandlerVersion": "2.1",
                 "autoUpgradeMinorVersion": true,
                 "settings": {
-                    "timestamp": 123456789
+                    "timestamp": 234567891
                 },
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFileName'))]",
@@ -1063,7 +1063,7 @@
                 "typeHandlerVersion": "2.1",
                 "autoUpgradeMinorVersion": true,
                 "settings": {
-                    "timestamp": 123456789
+                    "timestamp": 234567891
                 },
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFileName'))]",

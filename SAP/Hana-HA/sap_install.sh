@@ -9,6 +9,10 @@ sapPassword=$3
 installSource=$4
 installSourceFile=$5
 
+# Set up log file
+set -v -x -E
+log_file="/tmp/$(hostname)_sapInstall_$(date +%Y-%m-%d_%H-%M-%S).log"
+
 # Make Download directory
 sudo mkdir /hana/shared/$sapInstanceId/download
 sudo mkdir /hana/shared/$sapInstanceId/download/sapsoftware
@@ -26,11 +30,15 @@ sudo unzip -d /hana/shared/$sapInstanceId/download/hanainstall /hana/shared/$sap
 chmod +x /hana/shared/$sapInstanceId/download/hanainstall/DATA_UNITS/HDB_SERVER_LINUX_X86_64
 
 # Install prereqs
-sudo zypper -n install libgcc_s1 libstdc++6 libatomic1 insserv-compat libtool
+sudo zypper -n install libgcc_s1
+sudo zypper -n install libstdc++6
+sudo zypper -n install libatomic1
+sudo zypper -n install insserv-compat
+sudo zypper -n install libtool
 
 # Launch the SAP Installer and proceed through the config questions
 expect <<EOF
-set timeout -1
+set timeout 1500
 spawn /hana/shared/$sapInstanceId/download/hanainstall/DATA_UNITS/HDB_SERVER_LINUX_X86_64/hdblcm --ignore=check_signature_file
 expect -exact "Enter selected action index \[4\]: "
 send "1\r"
@@ -70,7 +78,7 @@ expect -exact "Enter System Administrator ($sapUser) Password: "
 send "$sapPassword\r"
 expect -exact "Confirm System Administrator ($sapUser) Password: "
 send "$sapPassword\r"
-expect -exact "Enter System Administrator Home Directory \[/usr/sap/HN1/home\]: "
+expect -exact "Enter System Administrator Home Directory \[/usr/sap/$sapInstanceId/home\]: "
 send "/usr/sap/$sapInstanceId/home\r"
 expect -exact "Enter System Administrator Login Shell \[/bin/sh\]: "
 send "\r"
