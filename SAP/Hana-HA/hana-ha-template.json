@@ -2,7 +2,7 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "metadata": {
-        "description": "Deploys a SAP HANA HA cluster. If necessary, will call the separate script to build the prerequisite networks",
+        "description": "Deploys an SAP HANA HA cluster. If necessary, it will call the separate script to build the prerequisite networks",
         "author": "Jason Tenpenny",
         "Enablement": "https://learn.microsoft.com/en-us/azure/sap/workloads/sap-hana-high-availability",
         "deploymentLinkInternal": "",
