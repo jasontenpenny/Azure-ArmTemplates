@@ -2,26 +2,11 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "metadata": {
-        "description": "Installs SAP software on up to 2 pre-existing VMs. This template should be deployed in the same resource group where the VMs exist that you want to install it on. This ensures that it can easily find them.",
+        "description": "Installs SAP software on up to 2 pre-existing VMs. This template should be deployed in the same resource group where the VMs exist that you want to install it on. This ensures that it can locate the VMs.",
         "author": "Jason Tenpenny",
-        "Enablement": "https://learn.microsoft.com/en-us/azure/sap/workloads/sap-hana-high-availability",
-        "deploymentLinkInternal": "",
-        "tsg": ""
+        "Enablement": "https://learn.microsoft.com/en-us/azure/sap/workloads/sap-hana-high-availability"
     },
     "parameters": {
-        "vm1Name": {
-            "type": "string",
-            "metadata": {
-                "description": "Name of the first VM"
-            }
-        },
-        "vm2Name": {
-            "type": "string",
-            "defaultValue": "",
-            "metadata": {
-                "description": "If installing for an HA setup, provide the name of the second VM"
-            }
-        },
         "SAPInstanceID": {
             "type": "string",
             "defaultValue": "HN1",
@@ -46,18 +31,24 @@
                 "description": "Enter a password to use for the Hana users created during install."
             }
         },
+        "vm1Name": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the first VM"
+            }
+        },
+        "vm2Name": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "If installing for an HA setup, provide the name of the second VM"
+            }
+        },
         "isHanaAlreadyInstalled": {
             "type": "bool",
             "defaultValue": false,
             "metadata": {
                 "description": "Used to skip the install and just configure HA"
-            }
-        },
-        "configureHA": {
-            "type": "bool",
-            "defaultValue": false,
-            "metadata": {
-                "description": "Choose whether to perform post-install configuration for HA between the two VMs"
             }
         },
         "SAPInstallMediaStorageAccountName": {
@@ -78,6 +69,20 @@
                 "description": "Enter the filename of the SAP install package (eg. '50157071.ZIP'). This will only be used if you elect to install SAP automatically. If you are not installing SAP, fill with a random value."
             }
         },
+        "configureHA": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "Choose whether to perform post-install configuration for HA between the two VMs. If you only have a single VM that you want to install SAP on, be sure to set this to false. Otherwise, the deployment will fail."
+            }
+        },
+        "loadbalancerFrontendIP": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "Provide the frontend IP of the load balancer in front of your database VMs. This is required if configuring HA."
+            }
+        },
         "newOrExistingManagedIdentity": {
             "type": "string",
             "allowedValues": [
@@ -89,7 +94,7 @@
         "existingManagedIdentityName": {
             "type": "string",
             "metadata": {
-                "description": "The resource name of the Managed Identity you want to use for the tasks. Should have at least Contributor access."
+                "description": "The resource name of the Managed Identity you want to use for the tasks. Should have at least Contributor access. If you are creating a new identity, fill with a random value."
             }
         },
         "utcValue": {
@@ -103,8 +108,8 @@
     "variables": {
         "sapInstallMediaUri": "[concat('https://', parameters('SAPInstallMediaStorageAccountName'), '.blob.core.windows.net/', parameters('SAPInstallMediaFilePath'), '/', parameters('SAPInstallMediaFileName'))]",
         "userIdentity": "[tolower(concat('ui-', uniqueString(resourceGroup().id)))]",
-        "bootstrapRoleAssignmentId": "[guid(concat(resourceGroup().id, 'contributor'))]",
-        "contributorRoleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]"
+        "bootstrapRoleAssignmentId": "[guid(concat(resourceGroup().id, 'owner'))]",
+        "contributorRoleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '8e3af657-a8ff-443c-a75c-2fe8c4bcb635')]"
 
     },
     "resources": [
@@ -146,7 +151,7 @@
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFileName'))]",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/sap_install.sh"
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-Install/sap_install.sh"
                     ]
                 }
             }
@@ -168,7 +173,7 @@
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFileName'))]",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/sap_install.sh"
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-Install/sap_install.sh"
                     ]
                 }
             }
@@ -176,13 +181,14 @@
         {
             "type": "Microsoft.Resources/deploymentScripts",
             "apiVersion": "2020-10-01",
-            "name": "installSapExtension",
-            "condition": "[not(equals(parameters('vm2Name'), ''))]",
+            "name": "removeSapInstallScript",
+            "condition": "[not(parameters('isHanaAlreadyInstalled'))]",
             "location": "[resourceGroup().location]",
             "kind": "AzurePowerShell",
             "dependsOn": [
                 "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm1Name'), 'sapInstall')]",
-                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm2Name'), 'sapInstall')]"
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm2Name'), 'sapInstall')]",
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userIdentity'))]"
             ],
             "identity": {
                 "type": "UserAssigned",
@@ -195,7 +201,33 @@
                 "azPowerShellVersion": "9.0",
                 "timeout": "PT30M",
                 "arguments": "[format(' -rgName {0} -subID {1} -vm1Name {2} -vm2Name {3}', resourceGroup().name, subscription().subscriptionId, parameters('vm1Name'), parameters('vm2Name'))]",
-                "scriptContent": "param ([string] [Parameter(Mandatory=$true)] $rgName, [string] [Parameter(Mandatory=$true)] $subID, [string] [Parameter(Mandatory=$true)] $vm1Name, [string] [Parameter(Mandatory=$true)] $vm2Name) $ErrorActionPreference = 'Stop'; Set-AzContext -SubscriptionId $subID; Set-AzDefault -ResourceGroupName $rgName; Start-Sleep -Seconds 30; Set-AzVMAEMExtension -ResourceGroupName $rgName -VMName $vm1Name -InstallNewExtension; Set-AzVMAEMExtension -ResourceGroupName $rgName -VMName $vm2Name -InstallNewExtension;",
+                "scriptContent": "param ([string] [Parameter(Mandatory=$true)] $rgName, [string] [Parameter(Mandatory=$true)] $subID, [string] [Parameter(Mandatory=$true)] $vm1Name, [string] [Parameter(Mandatory=$true)] $vm2Name) $ErrorActionPreference = 'Stop'; Set-AzContext -SubscriptionId $subID; Set-AzDefault -ResourceGroupName $rgName; Start-Sleep -Seconds 15; Remove-AzVMExtension -ResourceGroupName $rgName -VMName $vm1Name -Name 'sapInstall' -Force; Remove-AzVMExtension -ResourceGroupName $rgName -VMName $vm2Name -Name 'sapInstall' -Force;",
+                "cleanupPreference": "OnSuccess",
+                "retentionInterval": "P1D"
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deploymentScripts",
+            "apiVersion": "2020-10-01",
+            "name": "installSapExtension",
+            "condition": "[and(not(equals(parameters('vm2Name'), '')), not(parameters('isHanaAlreadyInstalled')))]",
+            "location": "[resourceGroup().location]",
+            "kind": "AzurePowerShell",
+            "dependsOn": [
+                "[resourceId('Microsoft.Resources/deploymentScripts', 'removeSapInstallScript')]"
+            ],
+            "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                    "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', if(equals(parameters('newOrExistingManagedIdentity'), 'New'), variables('userIdentity'), parameters('existingManagedIdentityName'))))]": {}
+                }
+            }, 
+            "properties": {
+                "forceUpdateTag": "[parameters('utcValue')]",
+                "azPowerShellVersion": "9.0",
+                "timeout": "PT30M",
+                "arguments": "[format(' -rgName {0} -subID {1} -vm1Name {2} -vm2Name {3}', resourceGroup().name, subscription().subscriptionId, parameters('vm1Name'), parameters('vm2Name'))]",
+                "scriptContent": "param ([string] [Parameter(Mandatory=$true)] $rgName, [string] [Parameter(Mandatory=$true)] $subID, [string] [Parameter(Mandatory=$true)] $vm1Name, [string] [Parameter(Mandatory=$true)] $vm2Name) $ErrorActionPreference = 'Stop'; Set-AzContext -SubscriptionId $subID; Set-AzDefault -ResourceGroupName $rgName; Start-Sleep -Seconds 15; Set-AzVMAEMExtension -ResourceGroupName $rgName -VMName $vm1Name -InstallNewExtension; Set-AzVMAEMExtension -ResourceGroupName $rgName -VMName $vm2Name -InstallNewExtension;",
                 "cleanupPreference": "OnSuccess",
                 "retentionInterval": "P1D"
             }
@@ -208,7 +240,7 @@
             "location": "[resourceGroup().location]",
             "kind": "AzurePowerShell",
             "dependsOn": [
-                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm1Name'), 'sapInstall')]"
+                "[resourceId('Microsoft.Resources/deploymentScripts', 'removeSapInstallScript')]"
             ],
             "identity": {
                 "type": "UserAssigned",
@@ -221,7 +253,7 @@
                 "azPowerShellVersion": "9.0",
                 "timeout": "PT30M",
                 "arguments": "[format(' -rgName {0} -subID {1} -vm1Name {2} -vm2Name {3}', resourceGroup().name, subscription().subscriptionId, parameters('vm1Name'))]",
-                "scriptContent": "param ([string] [Parameter(Mandatory=$true)] $rgName, [string] [Parameter(Mandatory=$true)] $subID, [string] [Parameter(Mandatory=$true)] $vm1Name) $ErrorActionPreference = 'Stop'; Set-AzContext -SubscriptionId $subID; Set-AzDefault -ResourceGroupName $rgName; Start-Sleep -Seconds 30; Set-AzVMAEMExtension -ResourceGroupName $rgName -VMName $vm1Name -InstallNewExtension;",
+                "scriptContent": "param ([string] [Parameter(Mandatory=$true)] $rgName, [string] [Parameter(Mandatory=$true)] $subID, [string] [Parameter(Mandatory=$true)] $vm1Name) $ErrorActionPreference = 'Stop'; Set-AzContext -SubscriptionId $subID; Set-AzDefault -ResourceGroupName $rgName; Start-Sleep -Seconds 15; Set-AzVMAEMExtension -ResourceGroupName $rgName -VMName $vm1Name -InstallNewExtension;",
                 "cleanupPreference": "OnSuccess",
                 "retentionInterval": "P1D"
             }
@@ -232,7 +264,7 @@
             "location": "[resourceGroup().location]",
             "condition": "[parameters('configureHA')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm1Name'), 'sapInstall')]"
+                "[resourceId('Microsoft.Resources/deploymentScripts', 'installSapExtension')]"
             ],
             "apiVersion": "2019-03-01",
             "properties": {
@@ -246,7 +278,7 @@
                 "protectedSettings": {
                     "commandToExecute": "sh ha_prereqs_install.sh",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/dev/Hana-HA/ha_prereqs_install.sh"
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-Install/ha_prereqs_install.sh"
                     ]
                 }
             }
@@ -255,9 +287,9 @@
             "type": "Microsoft.Compute/virtualMachines/extensions",
             "name": "[concat(parameters('vm2Name'), '/haPrereqsInstall')]",
             "location": "[resourceGroup().location]",
-            "condition": "[and(parameters('configureHA'), not(equals(parameters('vm2Name'), '')))]",
+            "condition": "[parameters('configureHA')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm2Name'), 'sapInstall')]"
+                "[resourceId('Microsoft.Resources/deploymentScripts', 'installSapExtension')]"
             ],
             "apiVersion": "2019-03-01",
             "properties": {
@@ -271,18 +303,47 @@
                 "protectedSettings": {
                     "commandToExecute": "sh ha_prereqs_install.sh",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/dev/Hana-HA/ha_prereqs_install.sh"
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-Install/ha_prereqs_install.sh"
                     ]
                 }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deploymentScripts",
+            "apiVersion": "2020-10-01",
+            "name": "removeHaPrereqsInstall",
+            "condition": "[parameters('configureHA')]",
+            "location": "[resourceGroup().location]",
+            "kind": "AzurePowerShell",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm1Name'), 'haPrereqsInstall')]",
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm2Name'), 'haPrereqsInstall')]",
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userIdentity'))]"
+            ],
+            "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                    "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', if(equals(parameters('newOrExistingManagedIdentity'), 'New'), variables('userIdentity'), parameters('existingManagedIdentityName'))))]": {}
+                }
+            }, 
+            "properties": {
+                "forceUpdateTag": "[parameters('utcValue')]",
+                "azPowerShellVersion": "9.0",
+                "timeout": "PT30M",
+                "arguments": "[format(' -rgName {0} -subID {1} -vm1Name {2} -vm2Name {3}', resourceGroup().name, subscription().subscriptionId, parameters('vm1Name'), parameters('vm2Name'))]",
+                "scriptContent": "param ([string] [Parameter(Mandatory=$true)] $rgName, [string] [Parameter(Mandatory=$true)] $subID, [string] [Parameter(Mandatory=$true)] $vm1Name, [string] [Parameter(Mandatory=$true)] $vm2Name) $ErrorActionPreference = 'Stop'; Set-AzContext -SubscriptionId $subID; Set-AzDefault -ResourceGroupName $rgName; Start-Sleep -Seconds 15; Remove-AzVMExtension -ResourceGroupName $rgName -VMName $vm1Name -Name 'haPrereqsInstall' -Force; Remove-AzVMExtension -ResourceGroupName $rgName -VMName $vm2Name -Name 'haPrereqsInstall' -Force;",
+                "cleanupPreference": "OnSuccess",
+                "retentionInterval": "P1D"
             }
         },
         {
             "type": "Microsoft.Compute/virtualMachines/extensions",
             "name": "[concat(parameters('vm1Name'), '/haConfig')]",
             "location": "[resourceGroup().location]",
-            "condition": "[and(parameters('configureHA'), not(equals(parameters('vm2Name'), '')))]",
+            "condition": "[parameters('configureHA')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm1Name'), 'haPrereqsInstall')]"
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm1Name'), 'haPrereqsInstall')]",
+                "[resourceId('Microsoft.Resources/deploymentScripts', 'removeHaPrereqsInstall')]"
             ],
             "apiVersion": "2019-03-01",
             "properties": {
@@ -294,36 +355,38 @@
                     "timestamp": 345678912
                 },
                 "protectedSettings": {
-                    "commandToExecute": "[concat('sh sap_ha_config.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', parameters('vm2Name'))]",
+                    "commandToExecute": "[concat('sh sap_ha_config.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', parameters('vm2Name'), ' ', subscription().subscriptionId, ' ', resourceGroup().name, ' ', parameters('loadbalancerFrontendIP'))]",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/dev/Hana-Install/sap_ha_config.sh"
+                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-Install/sap_ha_config.sh"
                     ]
                 }
             }
         },
         {
-            "type": "Microsoft.Compute/virtualMachines/extensions",
-            "name": "[concat(parameters('vm2Name'), '/haConfig')]",
+            "type": "Microsoft.Resources/deploymentScripts",
+            "apiVersion": "2020-10-01",
+            "name": "removeHaConfig",
+            "condition": "[parameters('configureHA')]",
             "location": "[resourceGroup().location]",
-            "condition": "[and(parameters('configureHA'), not(equals(parameters('vm2Name'), '')))]",
+            "kind": "AzurePowerShell",
             "dependsOn": [
-                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm2Name'), 'haPrereqsInstall')]"
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vm1Name'), 'haConfig')]",
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userIdentity'))]"
             ],
-            "apiVersion": "2019-03-01",
-            "properties": {
-                "publisher": "Microsoft.Azure.Extensions",
-                "type": "CustomScript",
-                "typeHandlerVersion": "2.1",
-                "autoUpgradeMinorVersion": true,
-                "settings": {
-                    "timestamp": 345678912
-                },
-                "protectedSettings": {
-                    "commandToExecute": "[concat('sh sap_ha_config.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', parameters('vm1Name'))]",
-                    "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/dev/Hana-Install/sap_ha_config.sh"
-                    ]
+            "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                    "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', if(equals(parameters('newOrExistingManagedIdentity'), 'New'), variables('userIdentity'), parameters('existingManagedIdentityName'))))]": {}
                 }
+            }, 
+            "properties": {
+                "forceUpdateTag": "[parameters('utcValue')]",
+                "azPowerShellVersion": "9.0",
+                "timeout": "PT30M",
+                "arguments": "[format(' -rgName {0} -subID {1} -vm1Name {2}', resourceGroup().name, subscription().subscriptionId, parameters('vm1Name'))]",
+                "scriptContent": "param ([string] [Parameter(Mandatory=$true)] $rgName, [string] [Parameter(Mandatory=$true)] $subID, [string] [Parameter(Mandatory=$true)] $vm1Name) $ErrorActionPreference = 'Stop'; Set-AzContext -SubscriptionId $subID; Set-AzDefault -ResourceGroupName $rgName; Start-Sleep -Seconds 15; Remove-AzVMExtension -ResourceGroupName $rgName -VMName $vm1Name -Name 'haConfig' -Force;",
+                "cleanupPreference": "OnSuccess",
+                "retentionInterval": "P1D"
             }
         }
     ]
