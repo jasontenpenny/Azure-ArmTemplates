@@ -204,7 +204,7 @@
             "properties": {
                 "mode": "Incremental",
                 "templateLink": {
-                    "uri": "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/ACSS-prereqs/VNet-with-NatGW.json",
+                    "uri": "https://raw.githubusercontent.com/itsjason-net/Azure-ArmTemplates/main/SAP/ACSS-prereqs/VNet-with-NatGW.json",
                     "contentVersion": "1.0.0.0"
                 },
                 "parameters": {
@@ -237,7 +237,7 @@
             "properties": {
                 "mode": "Incremental",
                 "templateLink": {
-                    "uri": "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/ACSS-prereqs/VNet-with-AzFW.json",
+                    "uri": "https://raw.githubusercontent.com/itsjason-net/Azure-ArmTemplates/main/SAP/ACSS-prereqs/VNet-with-AzFW.json",
                     "contentVersion": "1.0.0.0"
                 },
                 "parameters": {
@@ -1376,7 +1376,7 @@
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh disk_config.sh ', parameters('SAPInstanceID'), ' ', parameters('hanaPassword'))]",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/disk_config.sh"
+                        "https://raw.githubusercontent.com/itsjason-net/Azure-ArmTemplates/main/SAP/Hana-HA/disk_config.sh"
                     ]
                 }
             }
@@ -1401,7 +1401,7 @@
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh disk_config.sh ', parameters('SAPInstanceID'), ' ', parameters('hanaPassword'))]",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/disk_config.sh"
+                        "https://raw.githubusercontent.com/itsjason-net/Azure-ArmTemplates/main/SAP/Hana-HA/disk_config.sh"
                     ]
                 }
             }
@@ -1456,7 +1456,7 @@
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFileName'))]",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/sap_install.sh"
+                        "https://raw.githubusercontent.com/itsjason-net/Azure-ArmTemplates/main/SAP/Hana-HA/sap_install.sh"
                     ]
                 }
             }
@@ -1483,7 +1483,7 @@
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFileName'))]",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/sap_install.sh"
+                        "https://raw.githubusercontent.com/itsjason-net/Azure-ArmTemplates/main/SAP/Hana-HA/sap_install.sh"
                     ]
                 }
             }
@@ -1564,7 +1564,7 @@
                 "protectedSettings": {
                     "commandToExecute": "sh ha_prereqs_install.sh",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/ha_prereqs_install.sh"
+                        "https://raw.githubusercontent.com/itsjason-net/Azure-ArmTemplates/main/SAP/Hana-HA/ha_prereqs_install.sh"
                     ]
                 }
             }
@@ -1591,7 +1591,7 @@
                 "protectedSettings": {
                     "commandToExecute": "sh ha_prereqs_install.sh",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/ha_prereqs_install.sh"
+                        "https://raw.githubusercontent.com/itsjason-net/Azure-ArmTemplates/main/SAP/Hana-HA/ha_prereqs_install.sh"
                     ]
                 }
             }
@@ -1645,7 +1645,7 @@
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh sap_ha_config.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('dbVm2Name'), ' ', subscription().subscriptionId, ' ', resourceGroup().name, ' ', reference(variables('loadBalancerName')).frontendIPConfigurations[0].properties.privateIPAddress)]",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-HA/sap_ha_config.sh"
+                        "https://raw.githubusercontent.com/itsjason-net/Azure-ArmTemplates/main/SAP/Hana-HA/sap_ha_config.sh"
                     ]
                 }
             }
