@@ -3,7 +3,7 @@
     "contentVersion": "1.0.0.0",
     "metadata": {
         "description": "Deploys an SAP HANA HA cluster. If necessary, it will call a separate script to build the prerequisite networks",
-        "author": "Jason Tenpenny",
+        "author": "itsjason-net",
         "Enablement": "https://learn.microsoft.com/en-us/azure/sap/workloads/sap-hana-high-availability"
     },
     "parameters": {
