@@ -3,7 +3,7 @@
     "contentVersion": "1.0.0.0",
     "metadata": {
         "description": "Installs SAP software on up to 2 pre-existing VMs. This template should be deployed in the same resource group where the VMs exist that you want to install it on. This ensures that it can locate the VMs.",
-        "author": "Jason Tenpenny",
+        "author": "itsjason-net",
         "Enablement": "https://learn.microsoft.com/en-us/azure/sap/workloads/sap-hana-high-availability"
     },
     "parameters": {
@@ -151,7 +151,7 @@
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFileName'))]",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-Install/sap_install.sh"
+                        "https://raw.githubusercontent.com/itsjason-net/Azure-ArmTemplates/main/SAP/Hana-Install/sap_install.sh"
                     ]
                 }
             }
@@ -173,7 +173,7 @@
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh sap_install.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', variables('sapInstallMediaUri'), ' ', parameters('SAPInstallMediaFileName'))]",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-Install/sap_install.sh"
+                        "https://raw.githubusercontent.com/itsjason-net/Azure-ArmTemplates/main/SAP/Hana-Install/sap_install.sh"
                     ]
                 }
             }
@@ -278,7 +278,7 @@
                 "protectedSettings": {
                     "commandToExecute": "sh ha_prereqs_install.sh",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-Install/ha_prereqs_install.sh"
+                        "https://raw.githubusercontent.com/itsjason-net/Azure-ArmTemplates/main/SAP/Hana-Install/ha_prereqs_install.sh"
                     ]
                 }
             }
@@ -303,7 +303,7 @@
                 "protectedSettings": {
                     "commandToExecute": "sh ha_prereqs_install.sh",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-Install/ha_prereqs_install.sh"
+                        "https://raw.githubusercontent.com/itsjason-net/Azure-ArmTemplates/main/SAP/Hana-Install/ha_prereqs_install.sh"
                     ]
                 }
             }
@@ -357,7 +357,7 @@
                 "protectedSettings": {
                     "commandToExecute": "[concat('sh sap_ha_config.sh ', parameters('SAPInstanceID'), ' ', parameters('SAPInstanceNumber'), ' ', parameters('hanaPassword'), ' ', parameters('vm2Name'), ' ', subscription().subscriptionId, ' ', resourceGroup().name, ' ', parameters('loadbalancerFrontendIP'))]",
                     "fileUris": [
-                        "https://raw.githubusercontent.com/jasontenpenny/Azure-ArmTemplates/main/SAP/Hana-Install/sap_ha_config.sh"
+                        "https://raw.githubusercontent.com/itsjason-net/Azure-ArmTemplates/main/SAP/Hana-Install/sap_ha_config.sh"
                     ]
                 }
             }
