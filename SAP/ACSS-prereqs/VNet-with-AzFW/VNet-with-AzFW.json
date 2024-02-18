@@ -3,7 +3,7 @@
     "contentVersion": "1.0.0.0",
     "metadata": {
         "description": "Deploys prerequisite networking resources for ACSS. Creates a new Virtual Network with the recommended subnets for SAP deployments. Also creates an Azure Firewall and associated rules to handle outbound internet connections.",
-        "author": "Jason Tenpenny",
+        "author": "itsjason-net",
         "Enablement": "https://learn.microsoft.com/en-us/azure/sap/center-sap-solutions/prepare-network"
     },
     "parameters": {
