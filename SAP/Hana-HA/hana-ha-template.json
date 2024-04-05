@@ -840,7 +840,6 @@
                     {
                         "name": "ipconfig1",
                         "id": "[concat(resourceId('Microsoft.Network/networkInterfaces', variables('dbVm1NicName')), '/ipConfigurations/ipconfig1')]",
-                        "etag": "W/\"b82ce134-d1bb-453b-866a-b847097ce49c\"",
                         "type": "Microsoft.Network/networkInterfaces/ipConfigurations",
                         "properties": {
                             "provisioningState": "Succeeded",
@@ -887,7 +886,6 @@
                     {
                         "name": "ipconfig1",
                         "id": "[concat(resourceId('Microsoft.Network/networkInterfaces', variables('dbVm2NicName')), '/ipConfigurations/ipconfig1')]",
-                        "etag": "W/\"6fd6635e-9453-4043-be08-4f4e693d3bf8\"",
                         "type": "Microsoft.Network/networkInterfaces/ipConfigurations",
                         "properties": {
                             "provisioningState": "Succeeded",
@@ -937,7 +935,6 @@
                     {
                         "name": "ipconfig1",
                         "id": "[concat(resourceId('Microsoft.Network/networkInterfaces', variables('jumpboxNicName')), '/ipConfigurations/ipconfig1')]",
-                        "etag": "W/\"92860e0a-bfc2-4dfd-b26c-663909be65ae\"",
                         "type": "Microsoft.Network/networkInterfaces/ipConfigurations",
                         "properties": {
                             "provisioningState": "Succeeded",
