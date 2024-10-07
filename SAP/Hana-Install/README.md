@@ -6,6 +6,12 @@ You can optionally trigger an automated installation of SAP Hana. If you already
 
 Regardless of whether you installed Hana with this script, you can utilize it to perform an automatic configuration of the high availability components: a Hana database cluster utilizing Pacemaker and Hana System Replication.
 
+# Deploy Template
+
+Use the following button to deploy the template.
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fjasontenpenny%2FAzure-ArmTemplates%2Fmain%2FSAP%2FHana-Install%2Fhana-install.json)
+
 # Disclaimer
 
 This template and associated scripts is **not** suited for use in a production environment! The goal of this deployment template is to speed up the process of building a test environment for learning more about SAP Hana. The template and scripts are provided as is with no warranty for issues.
